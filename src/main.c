@@ -49,7 +49,7 @@ void* run_network_thread(void* arg) {
     (void)arg;
     while (is_running) {
         run_network(NULL);
-        sleep(1);         // 50Hz
+        usleep(100000); 
     }
     return NULL;
 }
@@ -84,14 +84,20 @@ int main() {
     // init_imu();
 
     //서버 연결
-    init_connection();
+    if (init_connection() == -1) {
+        fprintf(stderr, "서버 연결 실패, 네트워크 기능 없이 게임을 진행합니다.\n");
+        //네트워크 스레드 생성 없이 게임 진행
+    } else {
+        //서버 연결 성공 시 네트워크 스레드 생성
+        create_thread(&net_thread, run_network_thread, NULL);
+    }
     printf("debug");
 
     signal(SIGINT, sigint_handler);
     create_thread(&game_thread, run_game_thread, NULL);
     create_thread(&test_thread, test_controller, NULL);
     //create_thread(&imu_thread, run_imu, NULL);
-    create_thread(&net_thread, run_network_thread, NULL);
+    //create_thread(&net_thread, run_network_thread, NULL);
 
     // while (is_running) {
     //     if (getchar() == 'q') is_running = 0;
@@ -99,7 +105,7 @@ int main() {
     
     join_thread(game_thread);
     join_thread(test_thread);
-    join_thread(net_thread);
+    if(net_thread) join_thread(net_thread);
     //join_thread(imu_thread);
     //join_thread(net_thread);
 

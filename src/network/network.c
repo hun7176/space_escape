@@ -9,9 +9,11 @@
 #include "common.h"
 
 int net_sock;  // 네트워크용 전역 소켓 변수
+//static int connection_established = 0;
+static int last_sent_score = -1;  //중복 전송 방지
 
 //초기 연결 설정 (client 입장)
-void init_connection(){
+int init_connection(){
     int sock;
     struct sockaddr_in serv_addr;
 
@@ -24,14 +26,14 @@ void init_connection(){
     struct hostent* host = gethostbyname(host_address);
     if (!host) {
         fprintf(stderr, "gethostbyname() failed\n");
-        return;
+        return -1;
     }
 
     //TCP 소켓 생성 ipv4, tcp연결
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
         perror("socket");
-        exit(1);
+        return -1;
     }
 
     //htons -> 포트를 네트워크 바이트 순서로 변환
@@ -46,23 +48,31 @@ void init_connection(){
     if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) {
         perror("connect");
         close(sock);
-        exit(1);
+        return -1;
     }
 
     printf("Successfully connected to server\n");
 
     
     net_sock = sock;  // 소켓 저장 (main에서 접근 위함)
+    return 0; //성공시 0
     
 }
 
 //score를 전송하는 함수 (뮤텍스로 보호)
+//추후 게임상태 (game_over인지 아닌지도 보내서 판별할 수 있도록 구현)
 void send_score(){
     int current_score;
     pthread_mutex_lock(&score_mutex);
     current_score = score;
     pthread_mutex_unlock(&score_mutex);
     
+
+    //이전에 보낸 점수와 같으면 안보냄 (부하 방지)
+    if (current_score == last_sent_score) {
+        return;
+    }
+
     int net_score = htonl(current_score);
     if (send(net_sock, &net_score, sizeof(net_score), 0) == -1) {
         perror("send");
@@ -74,7 +84,7 @@ void* run_network(void* arg) {
     (void)arg;
     while (1) {
         send_score();
-        usleep(20000);  // 50Hz 전송 (추후 조정정)
+        usleep(100000);
     }
     close(net_sock);
     return NULL;

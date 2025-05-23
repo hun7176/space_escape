@@ -6,7 +6,7 @@ extern "C" {
 #endif
 
 //main.c에서 참조하는 init_connection, 네트워크 스레드(점수)
-void init_connection();
+int init_connection();
 void* run_network(void* arg);
 
 #ifdef __cplusplus
