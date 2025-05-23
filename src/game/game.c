@@ -18,6 +18,11 @@ int current_key = -1;             // 입력 키 저장 (미사용)
 Bullet bullets[MAX_BULLETS];      // 발사체 배열
 Obstacle obstacles[MAX_OBSTACLES];// 장애물 배열
 
+//게임 난이도 조정을 위한 변수들
+int level = 1;                     // 현재 레벨
+int obstacle_interval = 20;        // 장애물 이동 주기 (프레임 단위)
+int spawn_interval    = 10;        // 장애물 생성 주기 (프레임 단위)
+
 void init_game() {
     initscr();
     noecho();
@@ -78,14 +83,17 @@ void draw_ui() {
     mvprintw(2, base_x, "== SPACE ESCAPE ==");
     mvprintw(4, base_x, "Life : %03d", life);
     mvprintw(5, base_x, "Score: %d", score);
-    mvprintw(7, base_x, "[ Controls ]");
-    mvprintw(8, base_x, "Move   : Numpad 1~9");
-    mvprintw(9, base_x, "         ↖↑↗");
-    mvprintw(10, base_x, "         ←5→");
-    mvprintw(11, base_x, "         ↙↓↘");
-    mvprintw(12, base_x, "Shoot  : [Space]");
-    mvprintw(13, base_x, "Pause  : [p] or Ctrl+Z");
-    mvprintw(14, base_x, "Exit   : Ctrl+C");
+    mvprintw(6, base_x, "Bullet: %d", MAX_BULLETS);
+    mvprintw(7, base_x, "LEVEL: %d", level);
+
+    mvprintw(10, base_x, "[ Controls ]");
+    mvprintw(11, base_x, "Move   : Numpad 1~9");
+    mvprintw(12, base_x, "         ↖↑↗");
+    mvprintw(13, base_x, "         ←5→");
+    mvprintw(14, base_x, "         ↙↓↘");
+    mvprintw(15, base_x, "Shoot  : [Space]");
+    mvprintw(16, base_x, "Pause  : [p] or Ctrl+Z");
+    mvprintw(17, base_x, "Exit   : Ctrl+C");
 }
 
 void draw_objects() {
@@ -106,6 +114,7 @@ void draw_objects() {
     mvprintw(HEIGHT, 0, "Score: %d", score);
 }
 
+//장애물 생성 -> LEVEL이 증가할수록 빠르게 생성되거나 내려오도록
 void spawn_obstacle() {
     for (int i = 0; i < MAX_OBSTACLES; i++) {
         if (!obstacles[i].active) {
@@ -227,7 +236,8 @@ void* run_game(void* arg) {
     init_game();
     int frame = 0;
     
-    // 게임 루프
+    // 게임 루프 (루프 한번 돌때마다 frame이 증가함.)
+
     while (!game_over) {
         if (!paused) {
             clear();
@@ -235,11 +245,32 @@ void* run_game(void* arg) {
             draw_objects();
             handle_input();
             update_bullets();
-            if (frame % 20 == 0) update_obstacles();
+            //20프레임마다 obstacle위치 update
+            //10프레임마다 obstacle 생성 실행
+            if (frame % obstacle_interval == 0) update_obstacles();
+            if (frame % spawn_interval    == 0) spawn_obstacle();
+           
+            
             check_collisions();
-            if (frame++ % 10 == 0) spawn_obstacle();
             refresh();
             usleep(30000);
+
+            frame++;
+
+            //  --- 레벨업 조건 (예: 30초마다) ---
+            // 30초 * (1초당 약 33프레임) ≒ 1000프레임
+            // 15초
+            if (frame % 500 == 0) {
+                level++;
+                // 난이도 조절: 최소값을 지정해서 너무 빨라지지 않도록
+                obstacle_interval = (obstacle_interval > 5)
+                    ? obstacle_interval - 2
+                    : 5;
+                spawn_interval = (spawn_interval > 3)
+                    ? spawn_interval - 1
+                    : 3;
+            }
+
         } else {
             mvprintw(HEIGHT / 2, WIDTH / 2 - 5, "Paused");
             refresh();
