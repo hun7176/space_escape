@@ -3,12 +3,51 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #define PORT 12345
 #define BUF_SIZE 1024
+#define MAX_CLI 2
+
+typedef struct {
+    int fd;
+    int idx;
+    int score;
+} client_t;
+
+client_t clients[MAX_CLI];
+pthread_t  threads[MAX_CLI];
+
+
+void *recv_score(void *arg) {
+    client_t *c = (client_t*)arg;
+    int net_sc;
+    time_t last_print = 0;
+
+    //클라이언트로부터 int 점수 받기
+    while (1) {
+        ssize_t bytes = recv(c->fd, &net_sc, sizeof(net_sc), 0);
+        if (bytes <= 0) {
+            perror("recv");
+            break;
+        }
+        c->score = ntohl(net_sc);
+        printf("[Server] Client%d updated score=%d\n", c->idx, c->score);
+
+        // 마지막 출력 이후 1초가 지나면 출력
+        time_t now = time(NULL);
+        if (now - last_print >= 1) {
+            printf("[Server] Client%d updated score=%d\n", c->idx, c->score);
+            last_print = now;
+        }
+    }
+    return NULL;
+}
+
 
 int main() {
     int serv_sock, clnt_sock;
+
     struct sockaddr_in serv_addr, clnt_addr;
     socklen_t clnt_addr_size;
     char buffer[BUF_SIZE];
@@ -30,28 +69,55 @@ int main() {
         exit(1);
     }
 
-    if (listen(serv_sock, 5) == -1) {
+    //listen으로 최대 2 클라이언트 대기
+    if (listen(serv_sock, 2) == -1) {
         perror("listen");
         close(serv_sock);
         exit(1);
     }
 
     printf("Server is listening on port %d...\n", PORT);
-    clnt_addr_size = sizeof(clnt_addr);
-    clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &clnt_addr_size);
 
-    if (clnt_sock == -1) {
-        perror("accept");
-        close(serv_sock);
-        exit(1);
+    //accept() 를 두 번 호출해 두 명을 연결 대기
+    for (int i = 0; i < 2; i++) {
+        clients[i].fd  = accept(serv_sock, NULL, NULL);
+        clients[i].idx = i;
+        pthread_create(&threads[i], NULL, recv_score, &clients[i]);
     }
 
-    read(clnt_sock, buffer, BUF_SIZE);
-    printf("Received from client: %s\n", buffer);
+    for (int i = 0; i < MAX_CLI; i++)
+        pthread_join(threads[i], NULL);
 
-    write(clnt_sock, "Hello from server!", 19);
 
-    close(clnt_sock);
+    // clnt_addr_size = sizeof(clnt_addr);
+    // clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &clnt_addr_size);
+
+    // if (clnt_sock == -1) {
+    //     perror("accept");
+    //     close(serv_sock);
+    //     exit(1);
+    // }
+
+    // read(clnt_sock, buffer, BUF_SIZE);
+    // printf("Received from client: %s\n", buffer);
+
+    // write(clnt_sock, "Hello from server!", 19);
+
+    // close(clnt_sock);
+    // close(serv_sock);
+
+    //승자 결정
+    int win_idx = (clients[0].score > clients[1].score) ? 0
+                 : (clients[1].score > clients[0].score) ? 1
+                 : -1;
+    for (int i = 0; i < MAX_CLI; i++) {
+        int res = (win_idx < 0 ? 0 : (i == win_idx ? 1 : 2));
+        //1 = win, 2 = lose (or 0 = draw)
+        int net_r = htonl(res);
+        send(clients[i].fd, &net_r, sizeof(net_r), 0);
+        close(clients[i].fd);
+    }
     close(serv_sock);
+    printf("[Server] Done.\n");
     return 0;
 }

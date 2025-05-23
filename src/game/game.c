@@ -7,7 +7,9 @@
 #include "game.h"
 #include "game_parameter.h"   // WIDTH, HEIGHT, MAX_BULLETS, MAX_OBSTACLES 등 정의
 #include "intro_ui.h"          // init_colors(), show_main_menu(), func_pause(), end_by_signal(), 등
+#include "common.h"
 
+pthread_mutex_t score_mutex = PTHREAD_MUTEX_INITIALIZER;
 // 전역 게임 변수들
 int player_x, player_y;           // 플레이어 위치
 int life = 3;                     // 남은 목숨
@@ -27,7 +29,7 @@ void init_game() {
     initscr();
     noecho();
     curs_set(FALSE);
-    timeout(50);
+    timeout(33);
     keypad(stdscr, TRUE);
     srand(time(NULL));
     player_x = WIDTH / 2;
@@ -149,6 +151,7 @@ void update_obstacles() {
     }
 }
 
+//mutex사용, score보호
 void check_collisions() {
     for (int i = 0; i < MAX_OBSTACLES; i++) {
         if (!obstacles[i].active) continue;
@@ -158,7 +161,9 @@ void check_collisions() {
                 bullets[j].y == obstacles[i].y) {
                 bullets[j].active = 0;
                 obstacles[i].active = 0;
+                pthread_mutex_lock(&score_mutex);
                 score += 10;
+                pthread_mutex_unlock(&score_mutex);
                 break;
             }
         }
@@ -259,7 +264,7 @@ void* run_game(void* arg) {
 
             //  --- 레벨업 조건 (예: 30초마다) ---
             // 30초 * (1초당 약 33프레임) ≒ 1000프레임
-            // 15초
+            // 현재 15초
             if (frame % 500 == 0) {
                 level++;
                 // 난이도 조절: 최소값을 지정해서 너무 빨라지지 않도록

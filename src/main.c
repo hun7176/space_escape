@@ -10,6 +10,7 @@
 #include "thread_utils.h"
 #include <signal.h>
 #include <ncurses.h>
+#include "network.h"
 
 
 pthread_t game_thread, imu_thread, net_thread;
@@ -17,6 +18,7 @@ pthread_t test_thread;
 volatile int is_running = 1;
 
 void* run_game_thread(void* arg) {
+    (void)arg;
     while(is_running){
 
         run_game(NULL);
@@ -29,7 +31,9 @@ void* run_game_thread(void* arg) {
     //     usleep(33000);        // 약 30 FPS
     // }
     // return NULL;
+    return NULL;
 }
+
 
 // void* run_imu(void* arg) {
 //     while (is_running) {
@@ -41,14 +45,14 @@ void* run_game_thread(void* arg) {
 //     return NULL;
 // }
 
-// void* run_network(void* arg) {
-//     while (is_running) {
-//         send_player_state();   // 내 상태 전송
-//         recv_enemy_state();    // 상대 정보 수신
-//         usleep(20000);         // 50Hz
-//     }
-//     return NULL;
-// }
+void* run_network_thread(void* arg) {
+    (void)arg;
+    while (is_running) {
+        run_network(NULL);
+        sleep(1);         // 50Hz
+    }
+    return NULL;
+}
 
 //테스트용
 
@@ -71,20 +75,23 @@ void* test_controller(void* arg) {
 }
 
 void sigint_handler(int sig){
+    (void)sig;
     is_running = 0;
 }
 int main() {
     setlocale(LC_ALL, "ko_KR.UTF-8");
     // init_game_ui();
     // init_imu();
-    // init_network();
+
+    //서버 연결
+    init_connection();
     printf("debug");
 
     signal(SIGINT, sigint_handler);
     create_thread(&game_thread, run_game_thread, NULL);
     create_thread(&test_thread, test_controller, NULL);
     //create_thread(&imu_thread, run_imu, NULL);
-    //create_thread(&net_thread, run_network, NULL);
+    create_thread(&net_thread, run_network_thread, NULL);
 
     // while (is_running) {
     //     if (getchar() == 'q') is_running = 0;
@@ -92,6 +99,7 @@ int main() {
     
     join_thread(game_thread);
     join_thread(test_thread);
+    join_thread(net_thread);
     //join_thread(imu_thread);
     //join_thread(net_thread);
 

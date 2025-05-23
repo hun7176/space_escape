@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <time.h>
 
 #define BUF_SIZE 1024
 
@@ -13,8 +14,8 @@ int main() {
     char buffer[BUF_SIZE];
 
     // ngrok이 제공한 주소와 포트로 수정하세요
-    const char* ngrok_host = "hun7176.iptime.org";  // 예: 0.tcp.ngrok.io
-    int ngrok_port = 12345;                   // ngrok이 출력한 포트로 교체
+    const char* ngrok_host = "0.tcp.jp.ngrok.io";  // 예: 0.tcp.ngrok.io
+    int ngrok_port = 13455;                   // ngrok이 출력한 포트로 교체
 
     struct hostent* host = gethostbyname(ngrok_host);
     if (!host) {
@@ -38,10 +39,27 @@ int main() {
         exit(1);
     }
 
-    write(sock, "Hello from client!", 19);
-    read(sock, buffer, BUF_SIZE);
-    printf("Received from server: %s\n", buffer);
+    printf("Successfully connected to server\n");
 
+    //디버깅용: 랜덤 점수 생성
+    srand(time(NULL) ^ getpid());
+    int score = rand() % 100;
+    printf("[Client] Sending score=%d\n", score);
+
+    //점수 전송
+    int net_sc = htonl(score);
+    send(sock, &net_sc, sizeof(net_sc), 0);
+
+    // 서버 결과 수신
+    int net_r;
+    if (recv(sock, &net_r, sizeof(net_r), 0) <= 0) {
+        perror("recv");
+    } else {
+        int res = ntohl(net_r);
+        if (res == 1)      printf("[Client] You WIN!\n");
+        else if (res == 2) printf("[Client] You LOSE!\n");
+        else               printf("[Client] DRAW.\n");
+    }
     close(sock);
     return 0;
 }
