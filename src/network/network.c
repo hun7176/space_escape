@@ -10,7 +10,6 @@
 
 int net_sock;  // 네트워크용 전역 소켓 변수
 //static int connection_established = 0;
-static int last_sent_score = -1;  //중복 전송 방지
 
 //초기 연결 설정 (client 입장)
 int init_connection(){
@@ -19,7 +18,7 @@ int init_connection(){
 
     //서버 주소 설정
     const char * host_address = "0.tcp.jp.ngrok.io";
-    int port = 16706;
+    int port = 14400;
 
     //도메인 이름을 ip주소로 변환할때 사용
     //변환 ip주소는 host ->  h_addr_list[0]에 저장장
@@ -61,21 +60,33 @@ int init_connection(){
 
 //score를 전송하는 함수 (뮤텍스로 보호)
 //추후 게임상태 (game_over인지 아닌지도 보내서 판별할 수 있도록 구현)
-void send_score(){
-    int current_score;
+void send_player_status(){
+    //플레이어의 score, 게임종료 여부를 담은 구조체
+    player_status_t status;
+    static player_status_t last_sent_status = {0, 0};
+
     pthread_mutex_lock(&score_mutex);
-    current_score = score;
+    //현재 플레이어 상태 읽기
+    status.score = score;
+    status.game_over = game_over;
     pthread_mutex_unlock(&score_mutex);
     
 
-    //이전에 보낸 점수와 같으면 안보냄 (부하 방지)
-    if (current_score == last_sent_score) {
+    //이전에 보낸 상태와 같으면 안보냄 (부하 방지)
+    if(status.score == last_sent_status.score &&
+       status.game_over == last_sent_status.game_over) {
         return;
     }
 
-    int net_score = htonl(current_score);
-    if (send(net_sock, &net_score, sizeof(net_score), 0) == -1) {
+    //네트워크 바이트 순서로 변환
+    player_status_t net_status;
+    net_status.score = htonl(status.score);
+    net_status.game_over = htonl(status.game_over);
+    if (send(net_sock, &net_status, sizeof(net_status), 0) == -1) {
         perror("send");
+    } else {
+        //전송에 성공하면 last_sent_status를 갱신
+        last_sent_status = status;
     }
 }
 
@@ -83,7 +94,7 @@ void send_score(){
 void* run_network(void* arg) {
     (void)arg;
     while (1) {
-        send_score();
+        send_player_status();
         usleep(100000);
     }
     close(net_sock);

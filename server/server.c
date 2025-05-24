@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include "../include/common.h"
 
 #define PORT 12345
 #define BUF_SIZE 1024
@@ -13,33 +14,51 @@ typedef struct {
     int fd;
     int idx;
     int score;
+    int game_over; //게임종료 되었을시 1, 진행중이면 0
 } client_t;
 
 client_t clients[MAX_CLI];
 pthread_t  threads[MAX_CLI];
+pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-
-void *recv_score(void *arg) {
+void *recv_client_state(void *arg) {
     client_t *c = (client_t*)arg;
+    player_status_t status;
     int net_sc;
     time_t last_print = 0;
 
-    //클라이언트로부터 int 점수 받기
+    //클라이언트로부터 player_status_t 구조체 받기
     while (1) {
-        ssize_t bytes = recv(c->fd, &net_sc, sizeof(net_sc), 0);
+        ssize_t bytes = recv(c->fd, &status, sizeof(status), 0);
         if (bytes <= 0) {
             perror("recv");
             break;
         }
-        c->score = ntohl(net_sc);
-        printf("[Server] Client%d updated score=%d\n", c->idx, c->score);
 
-        // 마지막 출력 이후 1초가 지나면 출력
+        int net_score = ntohl(status.score);
+        int net_game_over = ntohl(status.game_over);
+
+        pthread_mutex_lock(&clients_mutex);
+        c->score = net_score;
+        c->game_over = net_game_over;
+        pthread_mutex_unlock(&clients_mutex);
+
+        printf("[Server] Client%d updated score=%d, game_over=%d\n",
+               c->idx, c->score, c->game_over);
+
         time_t now = time(NULL);
         if (now - last_print >= 1) {
-            printf("[Server] Client%d updated score=%d\n", c->idx, c->score);
+            // printf("[Server] Client%d score=%d, game_over=%d\n",
+            //        c->idx, c->score, c->game_over);
             last_print = now;
         }
+
+         if (net_game_over == 1) {
+            printf("[Server] Client%d game over with final score=%d\n",
+                   c->idx, c->score);
+            break;
+        }
+
     }
     return NULL;
 }
@@ -82,29 +101,14 @@ int main() {
     for (int i = 0; i < 2; i++) {
         clients[i].fd  = accept(serv_sock, NULL, NULL);
         clients[i].idx = i;
-        pthread_create(&threads[i], NULL, recv_score, &clients[i]);
+        pthread_create(&threads[i], NULL, recv_client_state, &clients[i]);
     }
 
     for (int i = 0; i < MAX_CLI; i++)
         pthread_join(threads[i], NULL);
 
 
-    // clnt_addr_size = sizeof(clnt_addr);
-    // clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &clnt_addr_size);
-
-    // if (clnt_sock == -1) {
-    //     perror("accept");
-    //     close(serv_sock);
-    //     exit(1);
-    // }
-
-    // read(clnt_sock, buffer, BUF_SIZE);
-    // printf("Received from client: %s\n", buffer);
-
-    // write(clnt_sock, "Hello from server!", 19);
-
-    // close(clnt_sock);
-    // close(serv_sock);
+    
 
     //승자 결정
     int win_idx = (clients[0].score > clients[1].score) ? 0
