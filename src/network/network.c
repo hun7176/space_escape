@@ -14,15 +14,24 @@ NetworkLobbyRoom network_lobby = {0};
 int my_player_id = -1;
 int opponent_score = 0;
 pthread_mutex_t network_mutex = PTHREAD_MUTEX_INITIALIZER;
+extern volatile int is_running;
+volatile int game_result_received = 0; 
+game_result_t last_game_result; //결과 저장용 전역 변수 추가
 
 //초기 연결 설정 (client 입장)
+/**
+ * 초기 서버 연결
+ * return값에 따라 원인을 규정함
+ * -2 : 서버 연결자체 실패
+ * -100 : 서버가 가득찬 상태
+ */
 int init_connection(){
     int sock;
     struct sockaddr_in serv_addr;
 
     //서버 주소 설정
     const char * host_address = "0.tcp.jp.ngrok.io";
-    int port = 14400;
+    int port = 15229;
 
     //도메인 이름을 ip주소로 변환할때 사용
     //변환 ip주소는 host ->  h_addr_list[0]에 저장장
@@ -53,6 +62,25 @@ int init_connection(){
         close(sock);
         return -1;
     }
+
+    //서버에서 "SERVER_FULL" 메시지가 오는지 체크
+    char buf[32] = {0};
+    int n = recv(sock, buf, sizeof(buf)-1, 0); // MSG_DONTWAIT 제거
+    if (n <= 0) {
+        // 서버가 소켓을 닫았거나 에러 발생
+        close(sock);
+        return -2;
+    }
+    if (strncmp(buf, "SERVER_FULL", 11) == 0) {
+        fprintf(stderr, "서버에 빈 슬롯이 없습니다.\n");
+        close(sock);
+        return -100; 
+    }
+    if (strncmp(buf, "WELCOME", 7) != 0) {
+        //예상치 못한 메시지
+        close(sock);
+        return -2;
+}
 
     printf("Successfully connected to server\n");
 
@@ -164,22 +192,42 @@ void handle_opponent_status(NetworkMessage* msg) {
 
 //todo: 나중에 게임끝날때 UI만들기
 void handle_game_result(NetworkMessage* msg){
-     game_result_t* result = (game_result_t*)msg->data;
+    game_result_t* result = (game_result_t*)msg->data;
     
-    printf("\n=== 게임 결과 ===\n");
-    printf("Player 1 점수: %d\n", result->player_scores[0]);
-    printf("Player 2 점수: %d\n", result->player_scores[1]);
+    // printf("\n=== 게임 결과 ===\n");
+    // printf("Player 1 점수: %d\n", result->player_scores[0]);
+    // printf("Player 2 점수: %d\n", result->player_scores[1]);
     
-    if (result->winner_id == -1) {
-        printf("무승부!\n");
-    } else {
-        printf("승자: Player %d\n", result->winner_id + 1);
-        if (result->winner_id == my_player_id) {
-            printf("당신이 이겼습니다!\n");
+    // if (result->winner_id == -1) {
+    //     printf("무승부!\n");
+    // } else {
+    //     printf("승자: Player %d\n", result->winner_id + 1);
+    //     if (result->winner_id == my_player_id) {
+    //         printf("당신이 이겼습니다!\n");
+    //     } else {
+    //         printf("아쉽게도 졌습니다.\n");
+    //     }
+    // }
+    
+    
+        clear();
+        mvprintw(5, 10, "=== 게임 결과 ===");
+        mvprintw(7, 10, "Player 1 점수: %d", last_game_result.player_scores[0]);
+        mvprintw(8, 10, "Player 2 점수: %d", last_game_result.player_scores[1]);
+        if (last_game_result.winner_id == -1) {
+            mvprintw(10, 10, "무승부!");
         } else {
-            printf("아쉽게도 졌습니다.\n");
+            mvprintw(10, 10, "승자: Player %d", last_game_result.winner_id + 1);
+            if (last_game_result.winner_id == my_player_id) {
+                mvprintw(12, 10, "당신이 이겼습니다!");
+            } else {
+                mvprintw(12, 10, "아쉽게도 졌습니다.");
+            }
         }
-    }
+        refresh();
+        getch(); // 사용자 입력 대기
+    
+    game_result_received = 1;
     //printf("%s\n", result->result_message);
 }
 
@@ -225,7 +273,7 @@ void update_lobby_status() {
 //네트워크 스레드 함수: 주기적으로 score 전송
 void* run_network(void* arg) {
     (void)arg;
-    while (1) {
+    while (is_running || !game_result_received) {
         process_network_messages();
         
         //게임이 시작된 경우에만 플레이어 상태 전송
@@ -239,6 +287,10 @@ void* run_network(void* arg) {
 
         usleep(100000);
     }
+    if (game_result_received) {
+        usleep(5000000); // 5초 대기
+    }
+    
     close(net_sock);
     return NULL;
 }

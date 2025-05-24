@@ -3,7 +3,7 @@
 
 void init_colors();
 int show_main_menu();
-
+int show_multiplayer_lobby();
 
 
 

@@ -530,8 +530,17 @@ int main() {
         }
         if (client_idx == -1) {
             printf("[Server] Maximum clients reached, rejecting connection\n");
+            //클라이언트에게 서버가 가득 찼음을 알림
+            const char* reject_msg = "SERVER_FULL";
+            send(clnt_sock, reject_msg, strlen(reject_msg), 0);
+            printf("[Server] send %s\n",reject_msg);
+            usleep(100000);
             close(clnt_sock);
             continue;
+        } else{
+            //슬롯 할당 성공
+            const char* welcome_msg = "WELCOME";
+            send(clnt_sock, welcome_msg, strlen(welcome_msg), 0);
         }
 
         //클라이언트 정보 설정

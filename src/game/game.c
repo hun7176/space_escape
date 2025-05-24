@@ -127,8 +127,9 @@ void end_game() {
     //화면 완전 클리어 후 종료
     clear();
     refresh();
-    endwin();
-    
+    //게임 종료시 스레드 종료조건인 is_running = 0
+    extern volatile int is_running;
+    is_running = 0;
     printf("Game Over! Score: %d\n", score);
 }
 
@@ -186,24 +187,6 @@ void draw_game_area() {
         wprintw(game_win, "O");
     }
 }
-
-// void draw_ui() {
-//     int base_x = WIDTH + 2;  // 게임 맵 오른쪽 바깥쪽 시작
-//     mvprintw(2, base_x, "== SPACE ESCAPE ==");
-//     mvprintw(4, base_x, "Life : %03d", life);
-//     mvprintw(5, base_x, "Score: %d", score);
-//     mvprintw(6, base_x, "Bullet: %d", MAX_BULLETS);
-//     mvprintw(7, base_x, "LEVEL: %d", level);
-
-//     mvprintw(10, base_x, "[ Controls ]");
-//     mvprintw(11, base_x, "Move   : Numpad 1~9");
-//     mvprintw(12, base_x, "         ↖↑↗");
-//     mvprintw(13, base_x, "         ←5→");
-//     mvprintw(14, base_x, "         ↙↓↘");
-//     mvprintw(15, base_x, "Shoot  : [Space]");
-//     mvprintw(16, base_x, "Pause  : [p] or Ctrl+Z");
-//     mvprintw(17, base_x, "Exit   : Ctrl+C");
-// }
 
 // UI 영역만 그리기 (필요할 때만 업데이트)
 void draw_ui_area() {
