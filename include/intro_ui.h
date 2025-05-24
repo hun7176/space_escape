@@ -2,7 +2,7 @@
 #define INTRO_UI_H
 
 void init_colors();
-void show_main_menu();
+int show_main_menu();
 
 
 

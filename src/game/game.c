@@ -36,6 +36,15 @@ int spawn_interval    = 10;        // 장애물 생성 주기 (프레임 단위)
 WINDOW *game_win = NULL;
 WINDOW *ui_win = NULL;
 static int last_score = -1;
+static int last_opponent_score = -1;
+
+int get_opponent_score() {
+    int score;
+    pthread_mutex_lock(&network_mutex);
+    score = opponent_score;
+    pthread_mutex_unlock(&network_mutex);
+    return score;
+}
 
 void init_game() {
     initscr();
@@ -199,14 +208,26 @@ void draw_game_area() {
 // UI 영역만 그리기 (필요할 때만 업데이트)
 void draw_ui_area() {
     int current_score;
+    int current_opponent_score;
     pthread_mutex_lock(&score_mutex);
     current_score = score;
     pthread_mutex_unlock(&score_mutex);
     
+    pthread_mutex_lock(&network_mutex);
+    current_opponent_score = opponent_score;
+    pthread_mutex_unlock(&network_mutex);
+
     // 점수가 변경되었을 때만 UI 업데이트
-    if (current_score != last_score) {
+    if (current_score != last_score || current_opponent_score != last_opponent_score) {
         werase(ui_win);
         
+        //게임모드에 따라 표시
+        if (current_game_mode == GAME_MODE_SINGLE) {
+            mvwprintw(ui_win, 1, 0, "== 1인 모드 ==");
+        } else {
+            mvwprintw(ui_win, 1, 0, "== 2인 모드 ==");
+        }
+
         mvwprintw(ui_win, 2, 0, "== SPACE ESCAPE ==");
         mvwprintw(ui_win, 4, 0, "Life : %03d", life);
         mvwprintw(ui_win, 5, 0, "Score: %d", current_score);
@@ -222,7 +243,13 @@ void draw_ui_area() {
         mvwprintw(ui_win, 16, 0, "Pause  : [p] or Ctrl+Z");
         mvwprintw(ui_win, 17, 0, "Exit   : Ctrl+C");
         
+        //2인 모드일 때 추가 정보 표시
+        if (current_game_mode == GAME_MODE_MULTI) {
+            mvwprintw(ui_win, 19, 0, "Opponent: %d", current_opponent_score);
+        }
+
         last_score = current_score;
+        last_opponent_score = current_opponent_score;
     }
 }
 
@@ -358,17 +385,17 @@ void* run_game(void* arg) {
 
 
     //메뉴를 블로킹 방식으로 보여줌
-    initscr();
-    noecho();
-    curs_set(FALSE);
-    keypad(stdscr, TRUE);
-    timeout(-1);
+    // initscr();
+    // noecho();
+    // curs_set(FALSE);
+    // keypad(stdscr, TRUE);
+    // timeout(-1);
     
-    init_colors();
-    show_main_menu();
+    // init_colors();
+    // show_main_menu();
     
-    endwin();  //메뉴 종료 후 화면 리셋
-    usleep(100000);
+    // endwin();  //메뉴 종료 후 화면 리셋
+    // usleep(100000);
     
     // 게임 초기화
     init_game();
