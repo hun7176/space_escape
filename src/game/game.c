@@ -125,8 +125,17 @@ void end_game() {
         delwin(ui_win);
         ui_win = NULL;
     }
-    // clear();
-    // refresh();
+
+    if(current_game_mode == GAME_MODE_SINGLE){
+
+        clear();
+        mvprintw(5, 10, "=== 게임 결과 ===");
+        mvprintw(7, 10, "당신의 점수: %d", score);
+
+        refresh();
+        usleep(5000000);
+
+    }
     //게임 종료시 스레드 종료조건인 is_running = 0
     extern volatile int is_running;
     is_running = 0;
@@ -178,23 +187,6 @@ void draw_waiting_screen() {
     }
 }
 
-// void draw_border() {
-//     for (int i = 0; i < WIDTH; i++) {
-//         mvprintw(0, i, "#");
-//         mvprintw(HEIGHT - 1, i, "#");
-//     }
-//     for (int i = 0; i < HEIGHT; i++) {
-//         mvprintw(i, 0, "#");
-//         mvprintw(i, WIDTH - 1, "#");
-//     }
-// }
-
-// void draw_life() {
-//     mvprintw(1, WIDTH - 20, "Life: ");
-//     for (int i = 0; i < life; i++) {
-//         printw("O");
-//     }
-// }
 
 // 게임 영역만 그리기 (더블 버퍼링)
 void draw_game_area() {
@@ -292,23 +284,6 @@ void draw_ui_area() {
     }
 }
 
-// void draw_objects() {
-//     mvprintw(player_y, player_x, "A");
-
-//     for (int i = 0; i < MAX_BULLETS; i++) {
-//         if (bullets[i].active)
-//             mvprintw(bullets[i].y, bullets[i].x, "|");
-//     }
-
-//     for (int i = 0; i < MAX_OBSTACLES; i++) {
-//         if (obstacles[i].active)
-//             mvprintw(obstacles[i].y, obstacles[i].x, "*");
-//     }
-
-//     draw_life();
-//     draw_ui();
-//     mvprintw(HEIGHT, 0, "Score: %d", score);
-// }
 
 //장애물 생성 -> LEVEL이 증가할수록 빠르게 생성되거나 내려오도록
 void spawn_obstacle() {
@@ -339,7 +314,13 @@ void update_obstacles() {
             if (obstacles[i].y >= HEIGHT - 2) {
                 life--;
                 obstacles[i].active = 0;
-                if (life <= 0) game_over = 1;
+                if (life <= 0){
+                    game_over = 1;
+                    if(current_game_mode == GAME_MODE_SINGLE){
+                        extern volatile int game_result_received;
+                        game_result_received = 1;
+                    }
+                } 
             }
         }
     }
