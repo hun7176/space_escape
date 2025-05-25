@@ -31,7 +31,7 @@ int init_connection(){
 
     //서버 주소 설정
     const char * host_address = "0.tcp.jp.ngrok.io";
-    int port = 15229;
+    int port = 16471;
 
     //도메인 이름을 ip주소로 변환할때 사용
     //변환 ip주소는 host ->  h_addr_list[0]에 저장장
