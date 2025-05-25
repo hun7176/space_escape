@@ -212,23 +212,28 @@ void handle_game_result(NetworkMessage* msg){
     
         clear();
         mvprintw(5, 10, "=== 게임 결과 ===");
-        mvprintw(7, 10, "Player 1 점수: %d", last_game_result.player_scores[0]);
-        mvprintw(8, 10, "Player 2 점수: %d", last_game_result.player_scores[1]);
+        mvprintw(7, 10, "Player 1 점수: %d", result->player_scores[0]);
+        mvprintw(8, 10, "Player 2 점수: %d", result->player_scores[1]);
         if (last_game_result.winner_id == -1) {
             mvprintw(10, 10, "무승부!");
         } else {
-            mvprintw(10, 10, "승자: Player %d", last_game_result.winner_id + 1);
-            if (last_game_result.winner_id == my_player_id) {
+            mvprintw(10, 10, "승자: Player %d", result->winner_id + 1);
+            if (result->winner_id == my_player_id) {
                 mvprintw(12, 10, "당신이 이겼습니다!");
             } else {
                 mvprintw(12, 10, "아쉽게도 졌습니다.");
             }
         }
+        mvprintw(14, 10, result->result_message);
         refresh();
-        getch(); // 사용자 입력 대기
+        getch();
+        
     
     game_result_received = 1;
     //printf("%s\n", result->result_message);
+    // extern volatile int is_running;
+    // is_running = 0;
+    
 }
 
 
@@ -249,6 +254,8 @@ void process_network_messages() {
                 handle_opponent_status(&msg);
                 break;
             case MSG_GAME_END:
+                extern int game_over;
+                game_over = 1;
                 handle_game_result(&msg);
                 break;
             default:

@@ -215,7 +215,12 @@ void remove_player_from_lobby(int client_idx){
         
         //게임이 진행 중이었다면 게임 종료
         if (lobby.game_started) {
+            printf("[Server] Game has been terminated (Player Exited)\n"); //이경우는 플레이어가 게임시작했는데, 중간에 나가서 서버와 연결이 종료된경우
+            pthread_mutex_unlock(&lobby_mutex);
+            handle_game_end(); //handle_game_end()에서 lobby.game_started = 0 인경우, return을 하므로, game종료시키기 전에 처리해야함!
+            pthread_mutex_lock(&lobby_mutex);
             lobby.game_started = 0;
+            
         }
     }
     
@@ -311,46 +316,61 @@ void handle_game_end(){
         return;
     }
 
-    //모든 플레이어가 끝났는지를 확인
+    int connected_count = 0;
+    int last_connected_idx = -1;
+    //모든 플레이어가 끝났는지를 확인 -> 한명의 플레이어가 튕긴경우도 고려
     int all_finished = 1;
     for(int i=0;i<MAX_CLIENTS;i++){
         if(lobby.players[i].connected){
+            connected_count++;
+            last_connected_idx = i; //남아있는 플레이어
             int client_idx = lobby.players[i].player_id;
              if (client_idx >= 0 && client_idx < MAX_CLIENTS && !clients[client_idx].game_over) { //만약 client중 gameover = 0인 사람이 있으면, all_finished = 0
                 all_finished = 0;
-                break;
             }
         }
     }
     
-    //승자 결정
-    if(all_finished){
+    //승자 결정 (한명만 남았거나 모두 끝났을때 처리)
+    if(connected_count == 1 || all_finished){
 
         game_result_t result;
-        int score[2] = {0, 0};
-        int player = 0;
+        memset(&result, 0, sizeof(result));
 
-
-        for(int i=0;i<MAX_CLIENTS;i++){
-            if(lobby.players[i].connected){
-                int client_idx = lobby.players[i].player_id;
-                //두명의 클라이언트의 최종 점수를 담음
-                score[player] = clients[client_idx].score;
-                result.player_scores[player] = score[player];
-                player++;
-            }
+        if(connected_count == 1){
+            //한명만 남은 경우
+            result.winner_id = last_connected_idx;
+            strcpy(result.result_message, "상대방이 게임을 종료했습니다.");
+            result.player_scores[last_connected_idx] = clients[last_connected_idx].score;
+            result.player_scores[!last_connected_idx] = 0;
         }
+        else{
 
-
-        if(score[0] > score[1]){ //player 1의 승리
-            result.winner_id = 0;
-            strcpy(result.result_message, "Player 1 wins!");
-        } else if (score[1] > score[0]) {
-            result.winner_id = 1;
-            strcpy(result.result_message, "Player 2 wins!");
-        } else {
-            result.winner_id = -1;
-            strcpy(result.result_message, "Draw!");
+            int score[2] = {0, 0};
+            int player = 0;
+    
+    
+            for(int i=0;i<MAX_CLIENTS;i++){
+                if(lobby.players[i].connected){
+                    int client_idx = lobby.players[i].player_id;
+                    //두명의 클라이언트의 최종 점수를 담음
+                    score[player] = clients[client_idx].score;
+                    result.player_scores[player] = score[player];
+                    player++;
+                }
+            }
+    
+    
+            if(score[0] > score[1]){ //player 1의 승리
+                result.winner_id = 0;
+                strcpy(result.result_message, "Player 1 wins!");
+            } else if (score[1] > score[0]) {
+                result.winner_id = 1;
+                strcpy(result.result_message, "Player 2 wins!");
+            } else {
+                result.winner_id = -1;
+                strcpy(result.result_message, "Draw!");
+            }
         }
 
         //각 플레이어에게 result구조체에 담아서 결과전송

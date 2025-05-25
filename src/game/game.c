@@ -27,6 +27,8 @@ int level = 1;                     // 현재 레벨
 int obstacle_interval = 20;        // 장애물 이동 주기 (프레임 단위)
 int spawn_interval    = 10;        // 장애물 생성 주기 (프레임 단위)
 
+// 게임 대기 상태 변수 추가
+int waiting_for_opponent = 0;     // 상대방 종료 대기 중인지 표시
 
 //더블 버퍼링을 위한 변수들
 /**
@@ -123,14 +125,57 @@ void end_game() {
         delwin(ui_win);
         ui_win = NULL;
     }
-    
-    //화면 완전 클리어 후 종료
-    clear();
-    refresh();
+    // clear();
+    // refresh();
     //게임 종료시 스레드 종료조건인 is_running = 0
     extern volatile int is_running;
     is_running = 0;
-    printf("Game Over! Score: %d\n", score);
+    printf("\nGame Over! Score: %d\n", score);
+}
+
+
+// 대기 화면 그리기
+void draw_waiting_screen() {
+    werase(game_win);
+    
+    // 테두리 그리기
+    for (int i = 0; i < WIDTH; i++) {
+        mvwprintw(game_win, 0, i, "#");
+        mvwprintw(game_win, HEIGHT - 1, i, "#");
+    }
+    for (int i = 0; i < HEIGHT; i++) {
+        mvwprintw(game_win, i, 0, "#");
+        mvwprintw(game_win, i, WIDTH - 1, "#");
+    }
+    
+    // 대기 메시지 박스
+    int box_width = 40;
+    int box_height = 8;
+    int start_x = (WIDTH - box_width) / 2;
+    int start_y = (HEIGHT - box_height) / 2;
+    
+    // 박스 테두리
+    for (int i = 0; i < box_width; i++) {
+        mvwprintw(game_win, start_y, start_x + i, "=");
+        mvwprintw(game_win, start_y + box_height - 1, start_x + i, "=");
+    }
+    for (int i = 0; i < box_height; i++) {
+        mvwprintw(game_win, start_y + i, start_x, "|");
+        mvwprintw(game_win, start_y + i, start_x + box_width - 1, "|");
+    }
+    
+    // 메시지 내용
+    mvwprintw(game_win, start_y + 2, start_x + 2, "게임 종료!");
+    mvwprintw(game_win, start_y + 3, start_x + 2, "당신의 점수: %d", score);
+    mvwprintw(game_win, start_y + 4, start_x + 2, "상대방 점수: %d", get_opponent_score());
+    mvwprintw(game_win, start_y + 5, start_x + 2, "상대방이 게임을 끝낼 때까지 대기 중...");
+    
+    // 애니메이션용 점들 (선택사항)
+    static int dot_count = 0;
+    dot_count = (dot_count + 1) % 4;
+    for (int i = 0; i < dot_count; i++) {
+        wprintw(game_win, ".");
+    }
 }
 
 // void draw_border() {
@@ -153,6 +198,13 @@ void end_game() {
 
 // 게임 영역만 그리기 (더블 버퍼링)
 void draw_game_area() {
+
+    // 대기 중이면 대기 화면 그리기
+    if (waiting_for_opponent) {
+        draw_waiting_screen();
+        return;
+    }
+
     // 게임 윈도우 클리어
     werase(game_win);
     
@@ -229,6 +281,10 @@ void draw_ui_area() {
         //2인 모드일 때 추가 정보 표시
         if (current_game_mode == GAME_MODE_MULTI) {
             mvwprintw(ui_win, 19, 0, "Opponent: %d", current_opponent_score);
+        }
+
+        if (waiting_for_opponent) {
+                mvwprintw(ui_win, 21, 0, "Status: Waiting...");
         }
 
         last_score = current_score;
@@ -309,6 +365,13 @@ void check_collisions() {
 }
 
 void handle_input() {
+
+    //대기 중이면 입력 무시
+    if (waiting_for_opponent) {
+        wgetch(game_win); // 입력 버퍼 비우기
+        return;
+    }
+
     int ch = wgetch(game_win);  // 게임 윈도우에서 입력 받기
     if (ch == ERR) return;  // 입력이 없으면 바로 리턴
     //int ch = getch();
@@ -385,56 +448,51 @@ void* run_game(void* arg) {
     int frame = 0;
     
     // 게임 루프 (루프 한번 돌때마다 frame이 증가함.)
+    extern volatile int game_result_received;
 
-    while (!game_over) {
+    while (!game_result_received) { //network.c의 handle_game_result까지 (모든 클라이언트가 끝나야만 호출됨)
         if (!paused) {
             //렌더링 뮤텍스로 보호
             pthread_mutex_lock(&render_mutex);
 
-            handle_input();
-            update_bullets();
-            //20프레임마다 obstacle위치 update
-            //10프레임마다 obstacle 생성 실행
-            if (frame % obstacle_interval == 0) update_obstacles();
-            if (frame % spawn_interval    == 0) spawn_obstacle();
-           
-            
-            check_collisions();
+            //게임이 끝났지만 아직 결과를 받지 못한 경우
+            if (game_over && current_game_mode == GAME_MODE_MULTI && !waiting_for_opponent) {
+                waiting_for_opponent = 1;  //대기 상태로 전환
+            }
+            //대기 중이 아닐땐 동작제어가능
+            if (!waiting_for_opponent) {
+                handle_input();
+                update_bullets();
+                
+                if (frame % obstacle_interval == 0) update_obstacles();
+                if (frame % spawn_interval == 0) spawn_obstacle();
+                
+                check_collisions();
+                
+                frame++;
+                
+                // 레벨업 조건
+                if (frame % 500 == 0) {
+                    level++;
+                    obstacle_interval = (obstacle_interval > 5) ? obstacle_interval - 2 : 5;
+                    spawn_interval = (spawn_interval > 3) ? spawn_interval - 1 : 3;
+                }
+            } else {
+                // 대기 중에도 입력은 처리 (버퍼 비우기 위해)
+                handle_input();
+            }
 
-            //화면 그리기 (더블 버퍼링)
+            // 화면 그리기 (대기 중이든 아니든)
             draw_game_area();
             draw_ui_area();
 
-
-            //윈도우 새로고침
+            // 윈도우 새로고침
             wnoutrefresh(game_win);
             wnoutrefresh(ui_win);
-            doupdate();  //모든 윈도우를 한번에 업데이트
+            doupdate();
 
             pthread_mutex_unlock(&render_mutex);
-
-            
-
-            frame++;
-
-            //  --- 레벨업 조건 (예: 30초마다) ---
-            // 30초 * (1초당 약 33프레임) ≒ 1000프레임
-            // 현재 15초
-            if (frame % 500 == 0) {
-                level++;
-                // 난이도 조절: 최소값을 지정해서 너무 빨라지지 않도록
-                obstacle_interval = (obstacle_interval > 5)
-                    ? obstacle_interval - 2
-                    : 5;
-                spawn_interval = (spawn_interval > 3)
-                    ? spawn_interval - 1
-                    : 3;
-            }
-
         } else {
-            // mvprintw(HEIGHT / 2, WIDTH / 2 - 5, "Paused");
-            // refresh();
-            // usleep(100000);
             pthread_mutex_lock(&render_mutex);
             mvwprintw(game_win, HEIGHT / 2, WIDTH / 2 - 5, "Paused");
             wnoutrefresh(game_win);
@@ -443,6 +501,12 @@ void* run_game(void* arg) {
         }
         usleep(30000);
     }
+    
+    
+    //extern volatile int game_result_received;
+    // while (!game_result_received) {
+    //     usleep(100000);
+    // }
     
     end_game();
     return NULL;
