@@ -73,7 +73,7 @@ void* imu_thread_func(void* arg) {
                 else if (x > THRESHOLD) dir = '4';
             }
         }
-        printf("%c\n",dir);
+
         // 방향 값을 뮤텍스로 보호하며 저장
         pthread_mutex_lock(&imu_lock);
         imu_direction = dir;
