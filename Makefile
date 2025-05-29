@@ -17,7 +17,6 @@ TARGET = space_escape
 SRC = \
 	src/main.c \
 	src/controller/controller.c \
-	src/controller/filter.c \
 	src/game/game.c \
 	src/game/intro_ui.c \
 	src/network/network.c \

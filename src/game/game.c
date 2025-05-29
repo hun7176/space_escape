@@ -8,10 +8,10 @@
 #include "game_parameter.h"   // WIDTH, HEIGHT, MAX_BULLETS, MAX_OBSTACLES 등 정의
 #include "intro_ui.h"          // init_colors(), show_main_menu(), func_pause(), end_by_signal(), 등
 #include "common.h"
-
+#include "controller.h"
 pthread_mutex_t score_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t render_mutex = PTHREAD_MUTEX_INITIALIZER;  // 렌더링 보호용 뮤텍스
-
+pthread_t imu_thread;
 extern int seed; //network로 부여받은 seed
 
 // 전역 게임 변수들
@@ -42,12 +42,24 @@ WINDOW *ui_win = NULL;
 static int last_score = -1;
 static int last_opponent_score = -1;
 
+
+extern char imu_direction;
+extern pthread_mutex_t imu_lock;
+
 int get_opponent_score() {
     int score;
     pthread_mutex_lock(&network_mutex);
     score = opponent_score;
     pthread_mutex_unlock(&network_mutex);
     return score;
+}
+
+void init_controller(){
+    int imu_fd = init_adxl345();
+    if (imu_fd >= 0) {
+        create_thread(&imu_thread, imu_thread_func, &imu_fd);
+    }
+
 }
 
 void init_game() {
@@ -284,6 +296,9 @@ void draw_ui_area() {
             mvwprintw(ui_win, 21, 0, "Status: Waiting...");
         }
 
+        mvwprintw(ui_win, 24, 0, "ch : %c", imu_direction);
+        //mvwprintw(ui_win, 25, 0, "Life : %03d", life);
+
         last_score = current_score;
         last_opponent_score = current_opponent_score;
     }
@@ -351,16 +366,22 @@ void check_collisions() {
 }
 
 void handle_input() {
+    
+
+    pthread_mutex_lock(&imu_lock);
+    char ch = imu_direction;
+    pthread_mutex_unlock(&imu_lock);
 
     //대기 중이면 입력 무시
     if (waiting_for_opponent) {
         wgetch(game_win); // 입력 버퍼 비우기
         return;
     }
-
-    int ch = wgetch(game_win);  // 게임 윈도우에서 입력 받기
+    //int ch = wgetch(game_win);  // 게임 윈도우에서 입력 받기
     if (ch == ERR) return;  // 입력이 없으면 바로 리턴
     //int ch = getch();
+
+
     switch (ch) {
         case '7':  // ↖
             if (player_x > 1) player_x--;
@@ -431,6 +452,7 @@ void* run_game(void* arg) {
     
     // 게임 초기화
     init_game();
+    init_controller();
     int frame = 0;
     
     // 게임 루프 (루프 한번 돌때마다 frame이 증가함.)
@@ -495,5 +517,6 @@ void* run_game(void* arg) {
     // }
     
     end_game();
+    join_thread(imu_thread);
     return NULL;
 }

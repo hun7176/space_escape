@@ -14,13 +14,16 @@
 #include "intro_ui.h"
 #include "game_parameter.h"
 #include "common.h"
-
-pthread_t game_thread, imu_thread, net_thread;
+#include "controller.h"
+pthread_t game_thread, net_thread; // imu_thread
 pthread_t test_thread;
 volatile int is_running = 1;
 GameMode current_game_mode = GAME_MODE_SINGLE;
 extern game_result_t last_game_result;
 extern volatile int game_result_received; 
+
+char imu_direction = '5';  // 초기 방향
+pthread_mutex_t imu_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void* run_game_thread(void* arg) {
     (void)arg;
@@ -39,7 +42,22 @@ void* run_game_thread(void* arg) {
     return NULL;
 }
 
+void* run_controller_thread(void* arg) {
+    (void)arg;
+    
 
+    run_game(NULL);
+        
+    
+
+    // while (is_running) {
+    //     update_game_state();  // IMU 방향 반영
+    //     render_game_ui();     // ncurses 출력
+    //     usleep(33000);        // 약 30 FPS
+    // }
+    // return NULL;
+    return NULL;
+}
 // void* run_imu(void* arg) {
 //     while (is_running) {
 //         read_imu_data();      // 센서 읽기
@@ -141,7 +159,12 @@ int main() {
     if(connected != -1){
         create_thread(&net_thread, run_network_thread, NULL);
     }
-    //create_thread(&imu_thread, run_imu, NULL);
+
+   // int imu_fd = init_adxl345();
+   // if (imu_fd >= 0) {
+   //     create_thread(&imu_thread, imu_thread_func, &imu_fd);
+   // }
+
     //create_thread(&net_thread, run_network_thread, NULL);
 
     // while (is_running) {
@@ -151,6 +174,7 @@ int main() {
     join_thread(game_thread);
     //join_thread(test_thread);
     if(net_thread) join_thread(net_thread);
+
     //join_thread(imu_thread);
     //join_thread(net_thread);
 

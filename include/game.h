@@ -36,6 +36,10 @@ typedef struct {
 extern GameMode current_game_mode;
 extern LobbyRoom lobby;
 
+
+//imu불러오기 위한 락과 공유자원
+
+
 #ifdef __cplusplus
 }
 #endif
