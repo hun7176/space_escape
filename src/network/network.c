@@ -17,6 +17,7 @@ pthread_mutex_t network_mutex = PTHREAD_MUTEX_INITIALIZER;
 extern volatile int is_running;
 volatile int game_result_received = 0; 
 game_result_t last_game_result; //결과 저장용 전역 변수 추가
+int seed;
 
 //초기 연결 설정 (client 입장)
 /**
@@ -31,7 +32,7 @@ int init_connection(){
 
     //서버 주소 설정
     const char * host_address = "0.tcp.jp.ngrok.io";
-    int port = 16471;
+    int port = 11137;
 
     //도메인 이름을 ip주소로 변환할때 사용
     //변환 ip주소는 host ->  h_addr_list[0]에 저장장
@@ -269,7 +270,9 @@ void handle_game_start(NetworkMessage* msg) {
     game_start_info_t* info = (game_start_info_t*)msg->data;
     pthread_mutex_lock(&network_mutex);
     network_lobby.game_started = 1;
+    seed = ntohl(info->seed);
     my_player_id = ntohl(info->player_id);
+
     pthread_mutex_unlock(&network_mutex);
 }
 

@@ -12,6 +12,8 @@
 pthread_mutex_t score_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t render_mutex = PTHREAD_MUTEX_INITIALIZER;  // 렌더링 보호용 뮤텍스
 
+extern int seed; //network로 부여받은 seed
+
 // 전역 게임 변수들
 int player_x, player_y;           // 플레이어 위치
 int life = 3;                     // 남은 목숨
@@ -58,8 +60,10 @@ void init_game() {
     curs_set(FALSE);
     timeout(0);
     keypad(stdscr, TRUE);
-    srand(time(NULL));
-
+    srand(seed);
+    //디버깅
+    printf("[client] seed: %d\n", seed);
+    
     
     //기존 윈도우 있으면 삭제
     if(game_win){
@@ -252,6 +256,7 @@ void draw_ui_area() {
         if (current_game_mode == GAME_MODE_SINGLE) {
             mvwprintw(ui_win, 1, 0, "== 1인 모드 ==");
         } else {
+            mvwprintw(ui_win, 0, 0, "Seed : %d", seed);
             mvwprintw(ui_win, 1, 0, "== 2인 모드 ==");
         }
 
@@ -276,7 +281,7 @@ void draw_ui_area() {
         }
 
         if (waiting_for_opponent) {
-                mvwprintw(ui_win, 21, 0, "Status: Waiting...");
+            mvwprintw(ui_win, 21, 0, "Status: Waiting...");
         }
 
         last_score = current_score;

@@ -25,6 +25,7 @@ typedef struct {
 //게임시작시 클라이언트로 id정보 보내줌
 typedef struct {
     int player_id;
+    unsigned int seed; //seed 정보
 } game_start_info_t;
 
 //서버용 메시지 타입 정의

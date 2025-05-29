@@ -90,13 +90,20 @@ void broadcast_game_start() {
     pthread_mutex_lock(&lobby_mutex);
     
     lobby.game_started = 1;
-    
+    int seed = time(NULL); //각 클라이언트에게 동일한 시드 부여
+
+    //디버깅용
+    printf("[server] Game Seed : %d\n", seed);
+
     for (int i = 0; i < LOBBY_SIZE; i++) {
         if (lobby.players[i].connected) {
             int client_idx = lobby.players[i].player_id;
             if (client_idx >= 0 && client_idx < MAX_CLIENTS && clients[client_idx].connected) {
                 game_start_info_t info;
-                info.player_id = htonl(i);
+                info.player_id = htonl(i); //각 player id를 보내줌
+                info.seed = htonl(seed);
+
+
                 send_to_client(clients[client_idx].fd, MSG_GAME_START, &info, sizeof(info)); //클라이언트는 이걸 보고 실행하면됨
             }
         }

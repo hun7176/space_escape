@@ -15,7 +15,7 @@ int main() {
 
     // ngrok이 제공한 주소와 포트로 수정하세요
     const char* ngrok_host = "0.tcp.jp.ngrok.io";  // 예: 0.tcp.ngrok.io
-    int ngrok_port = 13455;                   // ngrok이 출력한 포트로 교체
+    int ngrok_port = 16925;                   // ngrok이 출력한 포트로 교체
 
     struct hostent* host = gethostbyname(ngrok_host);
     if (!host) {
