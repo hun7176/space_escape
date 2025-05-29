@@ -59,7 +59,7 @@ void init_controller(){
     if (imu_fd >= 0) {
         create_thread(&imu_thread, imu_thread_func, &imu_fd);
     }
-
+    mvprintw(5, 10, "=== imu init done ===");
 }
 
 void init_game() {
