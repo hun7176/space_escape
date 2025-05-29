@@ -47,6 +47,7 @@ WINDOW *game_win = NULL;
 WINDOW *ui_win = NULL;
 static int last_score = -1;
 static int last_opponent_score = -1;
+static int imu_fd_global = -1;
 
 int get_opponent_score() {
     int score;
@@ -58,9 +59,9 @@ int get_opponent_score() {
 
 int debug_init_controller=0;
 void init_controller(){
-    int imu_fd = init_adxl345();
-    if (imu_fd >= 0) {
-        create_thread(&imu_thread, imu_thread_func, &imu_fd);
+    imu_fd_global = init_adxl345();
+    if (imu_fd_global >= 0) {
+        create_thread(&imu_thread, imu_thread_func, &imu_fd_global);
     }
     debug_init_controller=1;
 }
@@ -382,7 +383,7 @@ void handle_input() {
         wgetch(game_win); // 입력 버퍼 비우기
         return;
     }
-    //int ch = wgetch(game_win);  // 게임 윈도우에서 입력 받기
+    int ch2 = wgetch(game_win);  // 게임 윈도우에서 입력 받기
     if (ch == ERR) return;  // 입력이 없으면 바로 리턴
     //int ch = getch();
 
@@ -434,6 +435,18 @@ void handle_input() {
         default:
             break;
     }
+    switch(ch2){
+           case ' ':
+            for (int i = 0; i < MAX_BULLETS; i++) {
+                if (!bullets[i].active) {
+                    bullets[i].active = 1;
+                    bullets[i].x = player_x;
+                    bullets[i].y = player_y - 1;
+                    break;
+                }
+            }
+
+}
 }
 
 // run_game() 함수는 스레드에서 호출되어 게임 루프 전체를 실행합니다.
