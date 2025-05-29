@@ -22,9 +22,6 @@ GameMode current_game_mode = GAME_MODE_SINGLE;
 extern game_result_t last_game_result;
 extern volatile int game_result_received; 
 
-char imu_direction = '5';  // 초기 방향
-pthread_mutex_t imu_lock = PTHREAD_MUTEX_INITIALIZER;
-
 void* run_game_thread(void* arg) {
     (void)arg;
     

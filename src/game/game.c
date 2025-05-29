@@ -11,7 +11,13 @@
 #include "controller.h"
 pthread_mutex_t score_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t render_mutex = PTHREAD_MUTEX_INITIALIZER;  // 렌더링 보호용 뮤텍스
+
+//컨트롤러용
+char imu_direction = '5';  // 초기 방향
+pthread_mutex_t imu_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_t imu_thread;
+
+
 extern int seed; //network로 부여받은 seed
 
 // 전역 게임 변수들
@@ -42,10 +48,6 @@ WINDOW *ui_win = NULL;
 static int last_score = -1;
 static int last_opponent_score = -1;
 
-
-extern char imu_direction;
-extern pthread_mutex_t imu_lock;
-
 int get_opponent_score() {
     int score;
     pthread_mutex_lock(&network_mutex);
@@ -54,12 +56,13 @@ int get_opponent_score() {
     return score;
 }
 
+int debug_init_controller=0;
 void init_controller(){
     int imu_fd = init_adxl345();
     if (imu_fd >= 0) {
         create_thread(&imu_thread, imu_thread_func, &imu_fd);
     }
-    mvprintw(5, 10, "=== imu init done ===");
+    debug_init_controller=1;
 }
 
 void init_game() {
@@ -295,8 +298,10 @@ void draw_ui_area() {
         if (waiting_for_opponent) {
             mvwprintw(ui_win, 21, 0, "Status: Waiting...");
         }
-
-        mvwprintw(ui_win, 24, 0, "ch : %c", imu_direction);
+        
+        mvwprintw(ui_win, 24, 0, "controller init : %d",debug_init_controller);
+        
+        mvwprintw(ui_win, 25, 0, "ch : %c", imu_direction);
         //mvwprintw(ui_win, 25, 0, "Life : %03d", life);
 
         last_score = current_score;
