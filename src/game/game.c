@@ -13,7 +13,8 @@ pthread_mutex_t score_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t render_mutex = PTHREAD_MUTEX_INITIALIZER;  // 렌더링 보호용 뮤텍스
 
 //컨트롤러용
-char imu_direction = '5';  // 초기 방향
+char imu_direction[3] = {'5', '0', '0'};
+pthread_mutex_t switch_lock;  
 pthread_mutex_t imu_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_t imu_thread;
 
@@ -375,15 +376,18 @@ void handle_input() {
     
 
     pthread_mutex_lock(&imu_lock);
-    char ch = imu_direction;
+    char ch = imu_direction[0];
     pthread_mutex_unlock(&imu_lock);
 
+    pthread_mutex_lock(&switch_lock);
+    char ch2 = imu_direction[1];
+    char ch3 = imu_direction[2];
+    pthread_mutex_unlock(&switch_lock);
     //대기 중이면 입력 무시
     if (waiting_for_opponent) {
         wgetch(game_win); // 입력 버퍼 비우기
         return;
     }
-    int ch2 = wgetch(game_win);  // 게임 윈도우에서 입력 받기
     if (ch == ERR) return;  // 입력이 없으면 바로 리턴
     //int ch = getch();
 
@@ -436,7 +440,7 @@ void handle_input() {
             break;
     }
     switch(ch2){
-           case ' ':
+           case '1':
             for (int i = 0; i < MAX_BULLETS; i++) {
                 if (!bullets[i].active) {
                     bullets[i].active = 1;
@@ -445,7 +449,9 @@ void handle_input() {
                     break;
                 }
             }
-
+    switch(ch3){
+     
+    }
 }
 }
 

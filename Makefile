@@ -1,7 +1,7 @@
 # 컴파일러 및 플래그
 CC = gcc
 CFLAGS = -Wall -Wextra -Iinclude -pthread
-LDFLAGS = -lncursesw  # -lwiringPi 필요시 여기에 추가
+LDFLAGS = -lncursesw -lgpiod # -lwiringPi 필요시 여기에 추가
 
 # 서버 소스 및 오브젝트
 SERVER_SRC = server/server.c
