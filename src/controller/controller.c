@@ -17,7 +17,7 @@
 #define DATAX0    0x32
 #define SCREEN_ROWS 42
 #define SCREEN_COLS 90
-#define THRESHOLD 100  // 노이즈 방지용 임계값
+#define THRESHOLD 70  // 노이즈 방지용 임계값 원래 100
 
 #define SWITCH_PIN1 4   // GPIO 4번을 첫 번째 버튼으로 사용
 #define SWITCH_PIN2 14  // GPIO 14번을 두 번째 버튼으로 사용
@@ -125,7 +125,7 @@ void* imu_thread_func(void* arg) {
         // 스위치 정보를 IMU 방향에 추가
         if (switch1_state == 0) imu_direction[1] = '1';  // 스위치 1 눌렸을 때 '1'
 	else imu_direction[1] = '0';
-        if (switch2_state == 0) imu_direction[2] = '2';  // 스위치 2 눌렸을 때 '2'
+        if (switch2_state == 0) imu_direction[2] = '1';  // 스위치 2 눌렸을 때 '2'
         else imu_direction[2] = '0';
         pthread_mutex_unlock(&switch_lock); // 공유 자원 보호 종료
 

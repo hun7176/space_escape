@@ -17,7 +17,19 @@ char imu_direction[3] = {'5', '0', '0'};
 pthread_mutex_t switch_lock;  
 pthread_mutex_t imu_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_t imu_thread;
+// 아이템 관련 정의 수정
+#define MAX_ITEMS 5
+typedef struct {
+    int x;
+    int y;
+    int type; // 0: Clear All, 1: Bomb
+    int active;
+} Item;
 
+Item items[MAX_ITEMS];
+int effect_timer = 0; // 이펙트 표시 타이머
+int effect_type = -1; // 0: Clear All, 1: Bomb
+int has_item = -1; // -1: No item, 0: Clear All, 1: Bomb (global variable)
 // 색상 정의
 #define COLOR_PLAYER    1
 #define COLOR_BULLET    2
@@ -27,28 +39,6 @@ pthread_t imu_thread;
 #define COLOR_UI        6
 #define COLOR_SCORE     7
 #define COLOR_ENEMY     8
-#define COLOR_ITEM      9   // 아이템 색상 추가
-#define COLOR_BOMB      10  // 폭탄 색상 추가
-
-// 아이템 타입 정의
-#define ITEM_TYPE_CLEAR_MAP 1
-#define ITEM_TYPE_BOMB      2
-#define MAX_ITEMS           10
-
-// 아이템 구조체
-typedef struct {
-    int x, y;
-    int active;
-    int type;  // ITEM_TYPE_CLEAR_MAP 또는 ITEM_TYPE_BOMB
-} Item;
-
-// 폭탄 이펙트 구조체
-typedef struct {
-    int x, y;
-    int active;
-    int duration;  // 이펙트 지속 시간
-    int radius;    // 폭발 반경
-} BombEffect;
 
 extern int seed; //network로 부여받은 seed
 
@@ -61,18 +51,12 @@ int paused = 0;                   // 일시정지 플래그
 int current_key = -1;             // 입력 키 저장 (미사용)
 Bullet bullets[MAX_BULLETS];      // 발사체 배열
 Obstacle obstacles[MAX_OBSTACLES];// 장애물 배열
-Item items[MAX_ITEMS];            // 아이템 배열 추가
-BombEffect bomb_effects[5];       // 폭탄 이펙트 배열 (최대 5개)
-
-// 아이템 관련 변수
-int has_bomb = 0;                 // 폭탄 보유 여부
-int item_spawn_chance = 50;      // 아이템 생성 확률 (낮을수록 자주 생성)
 
 //게임 난이도 조정을 위한 변수들
 int level = 1;                     // 현재 레벨
 int obstacle_interval = 20;        // 장애물 이동 주기 (프레임 단위)
 int spawn_interval    = 10;        // 장애물 생성 주기 (프레임 단위)
-
+int item_spawn_interval = 10;
 // 게임 대기 상태 변수 추가
 int waiting_for_opponent = 0;     // 상대방 종료 대기 중인지 표시
 
@@ -101,8 +85,6 @@ void init_game_colors() {
         init_pair(COLOR_UI, COLOR_GREEN, COLOR_BLACK);         // UI: 초록색
         init_pair(COLOR_SCORE, COLOR_MAGENTA, COLOR_BLACK);    // 점수: 마젠타색
         init_pair(COLOR_ENEMY, COLOR_BLUE, COLOR_BLACK);       // 적 점수: 파란색
-        init_pair(COLOR_ITEM, COLOR_CYAN, COLOR_BLACK);        // 아이템: 청록색
-        init_pair(COLOR_BOMB, COLOR_RED, COLOR_YELLOW);        // 폭탄: 빨간색 배경 노란색
     }
 }
 
@@ -177,17 +159,11 @@ void init_game() {
     for (int i = 0; i < MAX_OBSTACLES; i++) {
         obstacles[i].active = 0;
     }
-    
-    // 아이템 초기화
     for (int i = 0; i < MAX_ITEMS; i++) {
         items[i].active = 0;
     }
-    
-    // 폭탄 이펙트 초기화
-    for (int i = 0; i < 5; i++) {
-        bomb_effects[i].active = 0;
-    }
-    
+    effect_timer = 0;
+    effect_type = -1;
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
     if (rows < HEIGHT + 2 || cols < WIDTH + 35) {
@@ -199,7 +175,18 @@ void init_game() {
 
     refresh();
 }
-
+// 아이템 생성 함수
+void spawn_item() {
+    for (int i = 0; i < MAX_ITEMS; i++) {
+        if (!items[i].active) {
+            items[i].active = 1;
+            items[i].x = rand() % (WIDTH - 2) + 1;
+            items[i].y = 1;
+            items[i].type = rand() % 2; // 0: Clear All, 1: Bomb
+            break;
+        }
+    }
+}
 void end_game() {
     if (game_win) {
         delwin(game_win);
@@ -229,29 +216,13 @@ void end_game() {
     is_running = 0;
     printf("\nGame Over! Score: %d\n", score);
 }
-
-// 아이템 생성 함수
-void spawn_item() {
-    // 확률적으로 아이템 생성
-    if (rand() % item_spawn_chance != 0) return;
-    
-    for (int i = 0; i < MAX_ITEMS; i++) {
-        if (!items[i].active) {
-            items[i].active = 1;
-            items[i].x = rand() % (WIDTH - 2) + 1;
-            items[i].y = 1;
-            // 60% 확률로 맵 클리어, 40% 확률로 폭탄
-            items[i].type = (rand() % 10 < 6) ? ITEM_TYPE_CLEAR_MAP : ITEM_TYPE_BOMB;
-            break;
-        }
-    }
-}
-
 // 아이템 업데이트 함수
-void update_items() {
+void update_items(int frame) {
     for (int i = 0; i < MAX_ITEMS; i++) {
         if (items[i].active) {
-            items[i].y++;
+            if (frame % 2 == 0) {
+                items[i].y++;
+            }
             if (items[i].y >= HEIGHT - 1) {
                 items[i].active = 0;
             }
@@ -259,50 +230,55 @@ void update_items() {
     }
 }
 
-void create_bomb_effect(int x, int y) {
-    for (int i = 0; i < 5; i++) {
-        if (!bomb_effects[i].active) {
-            bomb_effects[i].active = 1;
-            bomb_effects[i].x = x;
-            bomb_effects[i].y = y;
-            bomb_effects[i].duration = 15;  // 15프레임 동안 지속
-            bomb_effects[i].radius = 12;    // 반경을 12로 크게 증가
-            break;
-        }
-    }
-}
-
-// 폭탄 이펙트 업데이트 함수
-void update_bomb_effects() {
-    for (int i = 0; i < 5; i++) {
-        if (bomb_effects[i].active) {
-            bomb_effects[i].duration--;
-            if (bomb_effects[i].duration <= 0) {
-                bomb_effects[i].active = 0;
+// 아이템 충돌 체크 및 효과 적용 함수
+void check_item_collisions() {
+    for (int i = 0; i < MAX_ITEMS; i++) {
+        if (items[i].active && items[i].x == player_x && items[i].y == player_y) {
+            items[i].active = 0;
+            effect_type = items[i].type;
+            effect_timer = 30; // 이펙트 표시 시간
+            switch (items[i].type) {
+                case 0: // Clear All
+                    for (int j = 0; j < MAX_OBSTACLES; j++) {
+                        obstacles[j].active = 0;
+                    }
+                    break;
+                case 1: // Bomb
+                    for (int j = 0; j < MAX_OBSTACLES; j++) {
+                        if (obstacles[j].active &&
+                            abs(obstacles[j].x - player_x) <= 1 &&
+                            abs(obstacles[j].y - player_y) <= 1) {
+                            obstacles[j].active = 0;
+                        }
+                    }
+                    break;
             }
         }
     }
 }
 
-// 폭탄 이펙트로 장애물 파괴 함수 수정
-void destroy_obstacles_in_bomb_range(int bomb_x, int bomb_y, int radius) {
-    for (int i = 0; i < MAX_OBSTACLES; i++) {
-        if (obstacles[i].active) {
-            int dx = abs(obstacles[i].x - bomb_x);
-            int dy = abs(obstacles[i].y - bomb_y);
-            
-            // 맨하탄 거리로 계산하거나 유클리드 거리로 계산
-            // 현재는 정사각형 범위로 체크
-            if (dx <= radius && dy <= radius) {
-                obstacles[i].active = 0;
-                pthread_mutex_lock(&score_mutex);
-                score += 15;  // 폭탄으로 파괴시 보너스 점수
-                pthread_mutex_unlock(&score_mutex);
+// 이펙트 그리기 함수
+void draw_effects() {
+    if (effect_timer > 0) {
+        if (effect_type == 0) { // Clear All
+            wattron(game_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
+            mvwprintw(game_win, HEIGHT / 2, WIDTH / 2 - 3, "BOOM!");
+            wattroff(game_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
+        } else if (effect_type == 1) { // Bomb
+            wattron(game_win, COLOR_PAIR(COLOR_BULLET) | A_BOLD);
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    int ex = player_x + dx;
+                    int ey = player_y + dy;
+                    if (ex >= 1 && ex < WIDTH - 1 && ey >= 1 && ey < HEIGHT - 1) {
+                        mvwprintw(game_win, ey, ex, "*");
+                    }
+                }
             }
+            wattroff(game_win, COLOR_PAIR(COLOR_BULLET) | A_BOLD);
         }
     }
 }
-
 // 대기 화면 그리기 (향상된 버전)
 void draw_waiting_screen() {
     werase(game_win);
@@ -419,69 +395,21 @@ void draw_game_area() {
             mvwprintw(game_win, obstacles[i].y, obstacles[i].x, "●");
     }
     wattroff(game_win, COLOR_PAIR(COLOR_OBSTACLE) | A_BOLD);
-    
-    // // 아이템 그리기
-    // for (int i = 0; i < MAX_ITEMS; i++) {
-    //     if (items[i].active) {
-    //         if (items[i].type == ITEM_TYPE_CLEAR_MAP) {
-    //             wattron(game_win, COLOR_PAIR(COLOR_ITEM) | A_BOLD);
-    //             mvwprintw(game_win, items[i].y, items[i].x, "✦");  // 맵 클리어 아이템
-    //             wattroff(game_win, COLOR_PAIR(COLOR_ITEM) | A_BOLD);
-    //         } else if (items[i].type == ITEM_TYPE_BOMB) {
-    //             wattron(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-    //             mvwprintw(game_win, items[i].y, items[i].x, "B");  // 폭탄 아이템
-    //             wattroff(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-    //         }
-    //     }
-    // }
-    
-    // 아이템 그리기 (크기 확대)
-for (int i = 0; i < MAX_ITEMS; i++) {
-    if (items[i].active) {
-        if (items[i].type == ITEM_TYPE_CLEAR_MAP) {
-            wattron(game_win, COLOR_PAIR(COLOR_ITEM) | A_BOLD);
-            // 3x3 크기로 확대
-            mvwprintw(game_win, items[i].y-1, items[i].x-1, "✧✦✧");
-            mvwprintw(game_win, items[i].y,   items[i].x-1, "✦✦✦");
-            mvwprintw(game_win, items[i].y+1, items[i].x-1, "✧✦✧");
-            wattroff(game_win, COLOR_PAIR(COLOR_ITEM) | A_BOLD);
-        } else if (items[i].type == ITEM_TYPE_BOMB) {
-            wattron(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-            // 3x3 크기로 확대
-            mvwprintw(game_win, items[i].y-1, items[i].x-1, "OOO");
-            mvwprintw(game_win, items[i].y,   items[i].x-1, "OBO");
-            mvwprintw(game_win, items[i].y+1, items[i].x-1, "OOO");
-            wattroff(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-        }
-    }
-}
-
-// 폭탄 이펙트 그리기 부분 수정
-// 폭탄 이펙트 그리기
-for (int i = 0; i < 5; i++) {
-    if (bomb_effects[i].active) {
-        wattron(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-        int x = bomb_effects[i].x;
-        int y = bomb_effects[i].y;
-        int r = bomb_effects[i].radius; // 5배 곱하기 제거
-
-        // 정사각형 모양 폭발 이펙트
-        for (int dy = -r; dy <= r; dy++) {
-            for (int dx = -r; dx <= r; dx++) {
-                int nx = x + dx;
-                int ny = y + dy;
-                if (nx > 0 && nx < WIDTH - 1 && ny > 0 && ny < HEIGHT - 1) {
-                    mvwprintw(game_win, ny, nx, "*");
-                }
+    // 아이템 그리기
+    for (int i = 0; i < MAX_ITEMS; i++) {
+        if (items[i].active) {
+            wattron(game_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
+            switch (items[i].type) {
+                case 0: // Clear All
+                    mvwprintw(game_win, items[i].y, items[i].x, "C");
+                    break;
+                case 1: // Bomb
+                    mvwprintw(game_win, items[i].y, items[i].x, "B");
+                    break;
             }
+            wattroff(game_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
         }
-
-        // 중심부는 더 화려하게
-        mvwprintw(game_win, y, x, "💥");
-        wattroff(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
     }
-}
-    
     // 라이프 표시 (빨간색 하트)
     wattron(game_win, COLOR_PAIR(COLOR_LIFE) | A_BOLD);
     mvwprintw(game_win, 1, WIDTH - 18, "Life: ");
@@ -558,42 +486,27 @@ void draw_ui_area() {
         mvwprintw(ui_win, 8, 2, "⭐ LEVEL: %d", level);
         wattroff(ui_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
 
-        // 아이템 상태 표시
-        wattron(ui_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-        mvwprintw(ui_win, 9, 2, "💣 Bomb: %s", has_bomb ? "READY" : "NONE");
-        wattroff(ui_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-
         // 컨트롤 가이드 (IMU 컨트롤러 기반)
         wattron(ui_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
-        mvwprintw(ui_win, 11, 2, "🎮 [ Controls ]");
+        mvwprintw(ui_win, 10, 2, "🎮 [ Controls ]");
         wattroff(ui_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
         
         wattron(ui_win, COLOR_PAIR(COLOR_PLAYER));
-        mvwprintw(ui_win, 12, 2, "Move: IMU Sensor");
-        mvwprintw(ui_win, 13, 2, "      ↖ ↑ ↗");
-        mvwprintw(ui_win, 14, 2, "      ← ● →");
-        mvwprintw(ui_win, 15, 2, "      ↙ ↓ ↘");
-        mvwprintw(ui_win, 16, 2, "Shoot: Button Press");
-        mvwprintw(ui_win, 17, 2, "Bomb:  Button 3");
-        mvwprintw(ui_win, 18, 2, "Pause: [p] or Ctrl+Z");
-        mvwprintw(ui_win, 19, 2, "Exit:  Ctrl+C");
+        mvwprintw(ui_win, 11, 2, "Move: IMU Sensor");
+        mvwprintw(ui_win, 12, 2, "      ↖ ↑ ↗");
+        mvwprintw(ui_win, 13, 2, "      ← ● →");
+        mvwprintw(ui_win, 14, 2, "      ↙ ↓ ↘");
+        mvwprintw(ui_win, 15, 2, "Shoot: Button Press");
+        mvwprintw(ui_win, 16, 2, "Pause: [p] or Ctrl+Z");
+        mvwprintw(ui_win, 17, 2, "Exit:  Ctrl+C");
         wattroff(ui_win, COLOR_PAIR(COLOR_PLAYER));
-        
-        // 아이템 설명
-        wattron(ui_win, COLOR_PAIR(COLOR_ITEM));
-        mvwprintw(ui_win, 20, 2, "✦ Clear Map Item");
-        wattroff(ui_win, COLOR_PAIR(COLOR_ITEM));
-        wattron(ui_win, COLOR_PAIR(COLOR_BOMB));
-        mvwprintw(ui_win, 21, 2, "💣 Bomb Item");
-        wattroff(ui_win, COLOR_PAIR(COLOR_BOMB));
         
         //2인 모드일 때 추가 정보 표시
         if (current_game_mode == GAME_MODE_MULTI) {
             wattron(ui_win, COLOR_PAIR(COLOR_ENEMY) | A_BOLD);
-            mvwprintw(ui_win, 22, 2, "⚔️ Opponent: %d", current_opponent_score);
+            mvwprintw(ui_win, 19, 2, "⚔️ Opponent: %d", current_opponent_score);
             wattroff(ui_win, COLOR_PAIR(COLOR_ENEMY) | A_BOLD);
         }
-
 
         if (waiting_for_opponent) {
             wattron(ui_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
@@ -671,63 +584,6 @@ void check_collisions() {
         }
     }
 }
-// // 아이템과 플레이어 충돌 검사 및 처리 함수 추가
-// void check_item_collision() {
-//     for (int i = 0; i < MAX_ITEMS; i++) {
-//         if (items[i].active && 
-//             items[i].x == player_x && 
-//             items[i].y == player_y) {
-            
-//             items[i].active = 0;  // 아이템 비활성화
-            
-//             if (items[i].type == ITEM_TYPE_CLEAR_MAP) {
-//                 // 맵 클리어 아이템 효과
-//                 for (int j = 0; j < MAX_OBSTACLES; j++) {
-//                     if (obstacles[j].active) {
-//                         obstacles[j].active = 0;
-//                         pthread_mutex_lock(&score_mutex);
-//                         score += 5;  // 클리어된 장애물당 5점
-//                         pthread_mutex_unlock(&score_mutex);
-//                     }
-//                 }
-//             } else if (items[i].type == ITEM_TYPE_BOMB) {
-//                 // 폭탄 아이템 획득
-//                 has_bomb = 1;
-//             }
-//             break;
-//         }
-//     }
-// }
-
-void check_item_collision() {
-    for (int i = 0; i < MAX_ITEMS; i++) {
-        if (items[i].active) {
-            // 3x3 아이템과의 충돌 검사
-            // 아이템 영역: (x-1, y-1) ~ (x+1, y+1)
-            if (player_x >= items[i].x - 1 && player_x <= items[i].x + 1 &&
-                player_y >= items[i].y - 1 && player_y <= items[i].y + 1) {
-                
-                items[i].active = 0;  // 아이템 비활성화
-                
-                if (items[i].type == ITEM_TYPE_CLEAR_MAP) {
-                    // 맵 클리어 아이템 효과
-                    for (int j = 0; j < MAX_OBSTACLES; j++) {
-                        if (obstacles[j].active) {
-                            obstacles[j].active = 0;
-                            pthread_mutex_lock(&score_mutex);
-                            score += 5;
-                            pthread_mutex_unlock(&score_mutex);
-                        }
-                    }
-                } else if (items[i].type == ITEM_TYPE_BOMB) {
-                    // 폭탄 아이템 획득
-                    has_bomb = 1;
-                }
-                break;
-            }
-        }
-    }
-}
 
 void handle_input() {
     pthread_mutex_lock(&imu_lock);
@@ -794,7 +650,6 @@ void handle_input() {
             break;
     }
     
-    // 발사 버튼 (ch2)
     switch(ch2){
         case '1':
             for (int i = 0; i < MAX_BULLETS; i++) {
@@ -808,25 +663,36 @@ void handle_input() {
             break;
     }
     
-    // 폭탄 사용 버튼 (ch3)
-    switch(ch3){
-// 폭탄 사용 부분 수정 (handle_input 함수 내)
-case '1':
-    if (has_bomb) {  // 폭탄을 보유하고 있을 때만
-        // 플레이어 위치에서 폭탄 이펙트 생성
-        create_bomb_effect(player_x, player_y);
-        
-        // 폭탄 반경 내 장애물 파괴 (반경을 5로 통일)
-        destroy_obstacles_in_bomb_range(player_x, player_y, 12);
-        
-        // 폭탄 사용 완료
-        has_bomb = 0;
-    }
-    break;
+    switch(ch3) {
+        case '1':
+            if (has_item != -1) { // Check if player has an item
+                switch (has_item) {
+                    case 0: // Clear All item
+                        for (int j = 0; j < MAX_OBSTACLES; j++) {
+                            obstacles[j].active = 0; // Remove all obstacles
+                        }
+                        effect_type = 0; // Set effect for "Clear All"
+                        effect_timer = 30; // Display effect for 30 frames
+                        break;
+                    case 1: // Bomb item
+                        for (int j = 0; j < MAX_OBSTACLES; j++) {
+                            if (obstacles[j].active &&
+                                abs(obstacles[j].x - player_x) <= 1 &&
+                                abs(obstacles[j].y - player_y) <= 1) {
+                                obstacles[j].active = 0; // Remove nearby obstacles
+                            }
+                        }
+                        effect_type = 1; // Set effect for "Bomb"
+                        effect_timer = 30; // Display effect for 30 frames
+                        break;
+                }
+                has_item = -1; // Reset item after use
+            }
+            break;
     }
 }
 
-// run_game() 함수 수정
+// run_game() 함수는 스레드에서 호출되어 게임 루프 전체를 실행합니다.
 void* run_game(void* arg) {
     (void)arg;
     setlocale(LC_ALL, "");
@@ -855,18 +721,16 @@ void* run_game(void* arg) {
                 
                 if (frame % obstacle_interval == 0) update_obstacles();
                 if (frame % spawn_interval == 0) spawn_obstacle();
-                if (frame % spawn_interval == 0) spawn_item();
-                
-                // 아이템 관련 업데이트 추가
-                if (frame % 30 == 0) spawn_item();  // 30프레임마다 아이템 생성 시도
-                if(frame % 15 == 0) update_items();                     // 아이템 위치 업데이트
-                check_item_collision();             // 아이템과 플레이어 충돌 검사
-                
-                // 폭탄 이펙트 업데이트 추가
-                update_bomb_effects();
-                
+                if (frame % item_spawn_interval == 0) spawn_item();
+                update_items(frame);
                 check_collisions();
-                
+                check_item_collisions();
+                if (effect_timer > 0) {
+                    effect_timer--;
+                    if (effect_timer == 0) {
+                        effect_type = -1;
+                    }
+                }
                 frame++;
                 
                 // 레벨업 조건
