@@ -122,6 +122,16 @@ space_escape/
 [![2인 협동 모드](https://img.youtube.com/vi/F4oVLLpWjE0/0.jpg)](https://youtu.be/F4oVLLpWjE0)  
 🔗 https://youtu.be/F4oVLLpWjE0
 
+
+---
+
+## 🖼️ 게임 소개 이미지
+
+게임 개요 요약 (발표자료 중 슬라이드 1):
+
+![게임 소개 슬라이드](./presentation_note/page-0010.jpg)
+
+
 ---
 
 ## 🙌 참여 및 문의
