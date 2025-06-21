@@ -112,9 +112,15 @@ space_escape/
 
 ## 🎬 시연 영상
 
-[![1인 경쟁 모드](https://img.youtube.com/vi/-aqC0NLWS3E/0.jpg)](https://youtu.be/-aqC0NLWS3E)
-[![2인 협동 모드](https://img.youtube.com/vi/F4oVLLpWjE0/0.jpg)](https://youtu.be/F4oVLLpWjE0)
+### 🔹 1인 경쟁 모드  
+[![1인 경쟁 모드](https://img.youtube.com/vi/-aqC0NLWS3E/0.jpg)](https://youtu.be/-aqC0NLWS3E)  
+🔗 https://youtu.be/-aqC0NLWS3E
 
+&nbsp;
+
+### 🔹 2인 협동 모드  
+[![2인 협동 모드](https://img.youtube.com/vi/F4oVLLpWjE0/0.jpg)](https://youtu.be/F4oVLLpWjE0)  
+🔗 https://youtu.be/F4oVLLpWjE0
 
 ---
 
