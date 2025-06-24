@@ -69,7 +69,7 @@
 |------------------|------|
 | **센서 제어**       | I2C 통신 / ADXL345 / `ioctl()` |
 | **디바이스 드라이버** | `/dev/imu_dev` 생성 / read 기반 사용자 접근 |
-| **버튼 이벤트**     | GPIO + `poll()` |
+| **버튼 이벤트**     | GPIO + 주기적 polling (`gpiod_line_get_value()`) |
 | **소켓 통신**       | `socket()`, `bind()`, `connect()`, `recv()`, `send()` |
 | **스레드 처리**     | `pthread_create()`, `pthread_join()` 등 |
 | **화면 출력**       | ncurses 기반 텍스트 UI / flicker 최소화 |
@@ -81,17 +81,38 @@
 
 ```
 space_escape/
-├── include/              # 헤더 파일
-├── src/
-│   ├── server.c          # 서버 로직
-│   ├── client.c          # 클라이언트 로직
-│   ├── controller.c      # IMU + 버튼 처리
-│   └── game.c            # 게임 로직
-├── driver/
-│   └── imu_driver.c      # 커널 드라이버
-├── Makefile
-└── README.md
+├── build/                    # 빌드 산출물 (바이너리 등) 디렉토리
+├── docs/                    
+├── include/                  # 프로젝트 전역 헤더 파일
+│   ├── common.h              # 공통 상수
+│   ├── controller.h          # 컨트롤러 관련
+│   ├── game_parameter.h      # 게임 설정 값 정의
+│   ├── game.h                # 게임 로직 관련 헤더
+│   ├── intro_ui.h            # 시작 UI 관련 헤더
+│   └── network.h             # 네트워크 관련 헤더
+│   └── thread_utils.h        # 스레드 관련 유틸
+├── presentation_note/        # 발표 관련 자료
+├── server/                   # 서버 및 클라이언트 테스트 코드
+│   ├── server.c              # 서버 메인 코드
+│   ├── test_client.c         # 클라이언트 기능 테스트
+│   └── test_server.c         # 서버 기능 테스트
+├── src/                      
+│   ├── controller/           # 컨트롤러 입력 처리 관련 코드
+│   │   ├── controller.c
+│   │   └── switch_test.c
+│   ├── game/                 # 게임 로직 및 UI
+│   │   ├── game.c
+│   │   └── intro_ui.c
+│   ├── network/              # 소켓 통신 구현
+│   │   └── network.c
+│   ├── utils/
+│   │   └── thread_utils.c
+│   └── main.c                # 메인 실행 파일
+├── Makefile                  # 빌드 스크립트
+└── README.md 
 ```
+
+
 
 ---
 
@@ -107,6 +128,8 @@ space_escape/
 | v0.6.0 | UI 깜빡임 개선, 예외처리 강화 |
 | v0.7.0 | 동기화 개선, 서버 이탈 처리 |
 | v0.8.0 | 게임 시작 시 seed 공유로 상태 일관성 보장 |
+| v0.9.0 | 컨트롤러 버튼 추가, 게임과 연동 |
+| v1.0.0 | 게임 아이템 추가, 게임 UI개선 |
 
 ---
 
