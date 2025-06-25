@@ -138,14 +138,14 @@ sudo ./space_escape
 
 ## ⚠️ 컨트롤러 없이 실행하고 싶다면?
 
-컨트롤러 없이 테스트하려면, 가상 입력을 사용하는 더미 버전으로 전환하세요:
+컨트롤러 없이 테스트하려면, 가상 입력을 사용하는 더미 게임 로직으로 전환하세요:
 
 ```bash
-# 기존 controller.c 백업
-mv src/controller/controller.c src/controller/controller_hw.c
+# 기존 game.c 백업
+mv src/game/game.c src/game/game_hw.c
 
-# 더미 컨트롤러 코드로 교체
-cp src/controller/controller.c~ src/controller/controller.c
+# 더미 게임 코드로 교체
+cp src/game/game.c~ src/game/game.c
 
 # 다시 빌드
 make clean
@@ -153,7 +153,7 @@ make
 
 # 실행
 sudo ./space_escape
-```
+
 
 
 ---
