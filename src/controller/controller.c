@@ -29,7 +29,7 @@ int switch1_state = 1, switch2_state = 1;  // 스위치 상태 초기화
 int init_adxl345() {
     int fd = open(DEVICE, O_RDWR);
     if (fd < 0) {
-        perror("Failed to open I2C bus");
+        //perror("Failed to open I2C bus");
         return -1;
     }
 

@@ -87,12 +87,13 @@ static int last_score = -1;
 static int last_opponent_score = -1;
 static int imu_fd_global = -1;
 
+int debug_init_controller = 0;
+int controller_available = 0; // 컨트롤러 사용 가능 여부
+
 // 색상 초기화 함수
 void init_game_colors() {
     if (has_colors()) {
         start_color();
-        
-        // 색상 쌍 정의
         init_pair(COLOR_PLAYER, COLOR_CYAN, COLOR_BLACK);      // 플레이어: 청록색
         init_pair(COLOR_BULLET, COLOR_YELLOW, COLOR_BLACK);    // 총알: 노란색
         init_pair(COLOR_OBSTACLE, COLOR_RED, COLOR_BLACK);     // 장애물: 빨간색
@@ -114,16 +115,22 @@ int get_opponent_score() {
     return score;
 }
 
-int debug_init_controller=0;
 void init_controller(){
     imu_fd_global = init_adxl345();
     if (imu_fd_global >= 0) {
         create_thread(&imu_thread, imu_thread_func, &imu_fd_global);
+        debug_init_controller = 1;
+        controller_available = 1;
     }
-    debug_init_controller=1;
+    else{
+        debug_init_controller = 0;
+        controller_available = 0;
+    }
+
 }
 
 void init_game() {
+    
     initscr();
     clear();
     refresh();
@@ -133,12 +140,11 @@ void init_game() {
     timeout(0);
     keypad(stdscr, TRUE);
     
-    // 색상 초기화
+    //색상 초기화
     init_game_colors();
     
     srand(seed);
-    //디버깅
-    printf("[client] seed: %d\n", seed);
+   
     
     //기존 윈도우 있으면 삭제
     if(game_win){
@@ -265,8 +271,8 @@ void create_bomb_effect(int x, int y) {
             bomb_effects[i].active = 1;
             bomb_effects[i].x = x;
             bomb_effects[i].y = y;
-            bomb_effects[i].duration = 15;  // 15프레임 동안 지속
-            bomb_effects[i].radius = 12;    // 반경을 12로 크게 증가
+            bomb_effects[i].duration = 15;  //15프레임 동안 지속
+            bomb_effects[i].radius = 12;    //반경을 12로 크게 증가
             break;
         }
     }
@@ -373,16 +379,20 @@ void draw_waiting_screen() {
 
 // 게임 영역만 그리기 (색상 적용된 버전)
 void draw_game_area() {
+    
     // 대기 중이면 대기 화면 그리기
     if (waiting_for_opponent) {
         draw_waiting_screen();
         return;
     }
-
+    for (int y = 1; y < HEIGHT - 1; y++) {
+        for (int x = 1; x < WIDTH - 1; x++) {
+            mvwprintw(game_win, y, x, " ");
+        }
+    }
     // 게임 윈도우 클리어
     werase(game_win);
     
-    // 화려한 테두리 그리기
     wattron(game_win, COLOR_PAIR(COLOR_BORDER));
     for (int i = 0; i < WIDTH; i++) {
         mvwprintw(game_win, 0, i, "═");
@@ -401,14 +411,14 @@ void draw_game_area() {
     
     // 플레이어 그리기 (청록색 우주선)
     wattron(game_win, COLOR_PAIR(COLOR_PLAYER) | A_BOLD);
-    mvwprintw(game_win, player_y, player_x, "▲");
+    mvwprintw(game_win, player_y, player_x, "A");
     wattroff(game_win, COLOR_PAIR(COLOR_PLAYER) | A_BOLD);
     
     // 발사체 그리기 (노란색 총알)
     wattron(game_win, COLOR_PAIR(COLOR_BULLET) | A_BOLD);
     for (int i = 0; i < MAX_BULLETS; i++) {
         if (bullets[i].active)
-            mvwprintw(game_win, bullets[i].y, bullets[i].x, "│");
+            mvwprintw(game_win, bullets[i].y, bullets[i].x, "|");
     }
     wattroff(game_win, COLOR_PAIR(COLOR_BULLET) | A_BOLD);
     
@@ -416,71 +426,57 @@ void draw_game_area() {
     wattron(game_win, COLOR_PAIR(COLOR_OBSTACLE) | A_BOLD);
     for (int i = 0; i < MAX_OBSTACLES; i++) {
         if (obstacles[i].active)
-            mvwprintw(game_win, obstacles[i].y, obstacles[i].x, "●");
+            mvwprintw(game_win, obstacles[i].y, obstacles[i].x, "O");
     }
     wattroff(game_win, COLOR_PAIR(COLOR_OBSTACLE) | A_BOLD);
     
-    // // 아이템 그리기
-    // for (int i = 0; i < MAX_ITEMS; i++) {
-    //     if (items[i].active) {
-    //         if (items[i].type == ITEM_TYPE_CLEAR_MAP) {
-    //             wattron(game_win, COLOR_PAIR(COLOR_ITEM) | A_BOLD);
-    //             mvwprintw(game_win, items[i].y, items[i].x, "✦");  // 맵 클리어 아이템
-    //             wattroff(game_win, COLOR_PAIR(COLOR_ITEM) | A_BOLD);
-    //         } else if (items[i].type == ITEM_TYPE_BOMB) {
-    //             wattron(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-    //             mvwprintw(game_win, items[i].y, items[i].x, "B");  // 폭탄 아이템
-    //             wattroff(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-    //         }
-    //     }
-    // }
     
     // 아이템 그리기 (크기 확대)
-for (int i = 0; i < MAX_ITEMS; i++) {
-    if (items[i].active) {
-        if (items[i].type == ITEM_TYPE_CLEAR_MAP) {
-            wattron(game_win, COLOR_PAIR(COLOR_ITEM) | A_BOLD);
-            // 3x3 크기로 확대
-            mvwprintw(game_win, items[i].y-1, items[i].x-1, "✧✦✧");
-            mvwprintw(game_win, items[i].y,   items[i].x-1, "✦✦✦");
-            mvwprintw(game_win, items[i].y+1, items[i].x-1, "✧✦✧");
-            wattroff(game_win, COLOR_PAIR(COLOR_ITEM) | A_BOLD);
-        } else if (items[i].type == ITEM_TYPE_BOMB) {
+    for (int i = 0; i < MAX_ITEMS; i++) {
+        if (items[i].active) {
+            if (items[i].type == ITEM_TYPE_CLEAR_MAP) {
+                wattron(game_win, COLOR_PAIR(COLOR_ITEM) | A_BOLD);
+                // 3x3 크기로 확대
+                mvwprintw(game_win, items[i].y-1, items[i].x-1, "✧✦✧");
+                mvwprintw(game_win, items[i].y,   items[i].x-1, "✦✦✦");
+                mvwprintw(game_win, items[i].y+1, items[i].x-1, "✧✦✧");
+                wattroff(game_win, COLOR_PAIR(COLOR_ITEM) | A_BOLD);
+            } else if (items[i].type == ITEM_TYPE_BOMB) {
+                wattron(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
+                // 3x3 크기로 확대
+                mvwprintw(game_win, items[i].y-1, items[i].x-1, "OOO");
+                mvwprintw(game_win, items[i].y,   items[i].x-1, "OBO");
+                mvwprintw(game_win, items[i].y+1, items[i].x-1, "OOO");
+                wattroff(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
+            }
+        }
+    }
+
+    // 폭탄 이펙트 그리기 부분 수정
+    // 폭탄 이펙트 그리기
+    for (int i = 0; i < 5; i++) {
+        if (bomb_effects[i].active) {
             wattron(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-            // 3x3 크기로 확대
-            mvwprintw(game_win, items[i].y-1, items[i].x-1, "OOO");
-            mvwprintw(game_win, items[i].y,   items[i].x-1, "OBO");
-            mvwprintw(game_win, items[i].y+1, items[i].x-1, "OOO");
+            int x = bomb_effects[i].x;
+            int y = bomb_effects[i].y;
+            int r = bomb_effects[i].radius; // 5배 곱하기 제거
+
+            // 정사각형 모양 폭발 이펙트
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dx = -r; dx <= r; dx++) {
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx > 0 && nx < WIDTH - 1 && ny > 0 && ny < HEIGHT - 1) {
+                        mvwprintw(game_win, ny, nx, "*");
+                    }
+                }
+            }
+
+            // 중심부는 더 화려하게
+            mvwprintw(game_win, y, x, "💥");
             wattroff(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
         }
     }
-}
-
-// 폭탄 이펙트 그리기 부분 수정
-// 폭탄 이펙트 그리기
-for (int i = 0; i < 5; i++) {
-    if (bomb_effects[i].active) {
-        wattron(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-        int x = bomb_effects[i].x;
-        int y = bomb_effects[i].y;
-        int r = bomb_effects[i].radius; // 5배 곱하기 제거
-
-        // 정사각형 모양 폭발 이펙트
-        for (int dy = -r; dy <= r; dy++) {
-            for (int dx = -r; dx <= r; dx++) {
-                int nx = x + dx;
-                int ny = y + dy;
-                if (nx > 0 && nx < WIDTH - 1 && ny > 0 && ny < HEIGHT - 1) {
-                    mvwprintw(game_win, ny, nx, "*");
-                }
-            }
-        }
-
-        // 중심부는 더 화려하게
-        mvwprintw(game_win, y, x, "💥");
-        wattroff(game_win, COLOR_PAIR(COLOR_BOMB) | A_BOLD);
-    }
-}
     
     // 라이프 표시 (빨간색 하트)
     wattron(game_win, COLOR_PAIR(COLOR_LIFE) | A_BOLD);
@@ -569,14 +565,25 @@ void draw_ui_area() {
         wattroff(ui_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
         
         wattron(ui_win, COLOR_PAIR(COLOR_PLAYER));
-        mvwprintw(ui_win, 12, 2, "Move: IMU Sensor");
-        mvwprintw(ui_win, 13, 2, "      ↖ ↑ ↗");
-        mvwprintw(ui_win, 14, 2, "      ← ● →");
-        mvwprintw(ui_win, 15, 2, "      ↙ ↓ ↘");
-        mvwprintw(ui_win, 16, 2, "Shoot: Button Press");
-        mvwprintw(ui_win, 17, 2, "Bomb:  Button 3");
-        mvwprintw(ui_win, 18, 2, "Pause: [p] or Ctrl+Z");
-        mvwprintw(ui_win, 19, 2, "Exit:  Ctrl+C");
+        if (controller_available) {
+            // IMU 컨트롤러가 사용 가능한 경우
+            mvwprintw(ui_win, 12, 2, "Move: IMU Sensor");
+            mvwprintw(ui_win, 13, 2, "      ↖ ↑ ↗");
+            mvwprintw(ui_win, 14, 2, "      ← ● →");
+            mvwprintw(ui_win, 15, 2, "      ↙ ↓ ↘");
+            mvwprintw(ui_win, 16, 2, "Shoot: Button Press");
+            mvwprintw(ui_win, 17, 2, "Bomb:  Button 3");
+            mvwprintw(ui_win, 18, 2, "Exit:  Ctrl+C");
+        } else {
+            // 키보드 모드인 경우
+            mvwprintw(ui_win, 12, 2, "Move: Numpad 1~9");
+            mvwprintw(ui_win, 13, 2, "      ↖ ↑ ↗");
+            mvwprintw(ui_win, 14, 2, "      ← 5 →");
+            mvwprintw(ui_win, 15, 2, "      ↙ ↓ ↘");
+            mvwprintw(ui_win, 16, 2, "Shoot: [Space]");
+            mvwprintw(ui_win, 17, 2, "Bomb:  [b]");
+            mvwprintw(ui_win, 18, 2, "Exit:  Ctrl+C");
+        }
         wattroff(ui_win, COLOR_PAIR(COLOR_PLAYER));
         
         // 아이템 설명
@@ -730,100 +737,168 @@ void check_item_collision() {
 }
 
 void handle_input() {
-    pthread_mutex_lock(&imu_lock);
-    char ch = getch();
-    pthread_mutex_unlock(&imu_lock);
 
-    pthread_mutex_lock(&switch_lock);
-    char ch2 = imu_direction[1];
-    char ch3 = imu_direction[2];
-    pthread_mutex_unlock(&switch_lock);
+
+    
     
     //대기 중이면 입력 무시
     if (waiting_for_opponent) {
         wgetch(game_win); // 입력 버퍼 비우기
         return;
     }
-    if (ch == ERR) return;  // 입력이 없으면 바로 리턴
 
-    switch (ch) {
-        case '7':  // ↖
-            if (player_x > 1) player_x--;
-            if (player_y > 1) player_y--;
-            break;
-        case '8':  // ↑
-            if (player_y > 1) player_y--;
-            break;
-        case '9':  // ↗
-            if (player_x < WIDTH - 2) player_x++;
-            if (player_y > 1) player_y--;
-            break;
-        case '4':  // ←
-            if (player_x > 1) player_x--;
-            break;
-        case '5':  // 정지 (사용 X)
-            break;
-        case '6':  // →
-            if (player_x < WIDTH - 2) player_x++;
-            break;
-        case '1':  // ↙
-            if (player_x > 1) player_x--;
-            if (player_y < HEIGHT - 2) player_y++;
-            break;
-        case '2':  // ↓
-            if (player_y < HEIGHT - 2) player_y++;
-            break;
-        case '3':  // ↘
-            if (player_x < WIDTH - 2) player_x++;
-            if (player_y < HEIGHT - 2) player_y++;
-            break;
-        case ' ':
-            for (int i = 0; i < MAX_BULLETS; i++) {
-                if (!bullets[i].active) {
-                    bullets[i].active = 1;
-                    bullets[i].x = player_x;
-                    bullets[i].y = player_y - 1;
-                    break;
+    if(controller_available){
+        pthread_mutex_lock(&imu_lock);
+        char ch = imu_direction[0];
+        pthread_mutex_unlock(&imu_lock);
+    
+        pthread_mutex_lock(&switch_lock);
+        char ch2 = imu_direction[1];
+        char ch3 = imu_direction[2];
+        pthread_mutex_unlock(&switch_lock);
+        if (ch == ERR) return;
+        switch (ch) {
+            case '7':  // ↖
+                if (player_x > 1) player_x--;
+                if (player_y > 1) player_y--;
+                break;
+            case '8':  // ↑
+                if (player_y > 1) player_y--;
+                break;
+            case '9':  // ↗
+                if (player_x < WIDTH - 2) player_x++;
+                if (player_y > 1) player_y--;
+                break;
+            case '4':  // ←
+                if (player_x > 1) player_x--;
+                break;
+            case '5':  // 정지 (사용 X)
+                break;
+            case '6':  // →
+                if (player_x < WIDTH - 2) player_x++;
+                break;
+            case '1':  // ↙
+                if (player_x > 1) player_x--;
+                if (player_y < HEIGHT - 2) player_y++;
+                break;
+            case '2':  // ↓
+                if (player_y < HEIGHT - 2) player_y++;
+                break;
+            case '3':  // ↘
+                if (player_x < WIDTH - 2) player_x++;
+                if (player_y < HEIGHT - 2) player_y++;
+                break;
+            case ' ':
+                for (int i = 0; i < MAX_BULLETS; i++) {
+                    if (!bullets[i].active) {
+                        bullets[i].active = 1;
+                        bullets[i].x = player_x;
+                        bullets[i].y = player_y - 1;
+                        break;
+                    }
                 }
-            }
+                break;
+            case 'p':
+                paused = !paused;
+                break;
+            default:
+                break;
+        }
+    
+        // 발사 버튼 (ch2)
+        switch(ch2){
+            case '1':
+                for (int i = 0; i < MAX_BULLETS; i++) {
+                    if (!bullets[i].active) {
+                        bullets[i].active = 1;
+                        bullets[i].x = player_x;
+                        bullets[i].y = player_y - 1;
+                        break;
+                    }
+                }
+                break;
+        }
+    
+        // 폭탄 사용 버튼 (ch3)
+        switch(ch3){
+        // 폭탄 사용 부분 수정 (handle_input 함수 내)
+            case '1':
+                if (has_bomb) {  // 폭탄을 보유하고 있을 때만
+                    // 플레이어 위치에서 폭탄 이펙트 생성
+                    create_bomb_effect(player_x, player_y);
+                    
+                    // 폭탄 반경 내 장애물 파괴 (반경을 5로 통일)
+                    destroy_obstacles_in_bomb_range(player_x, player_y, 12);
+                    
+                    // 폭탄 사용 완료
+                    has_bomb = 0;
+                }
+                break;
+        }
+
+    } else{
+        char ch;
+        ch  = wgetch(game_win);
+        if(ch == ERR) return;
+        switch (ch) {
+            case '7':  // ↖
+            if (player_x > 1) player_x--;
+            if (player_y > 1) player_y--;
             break;
-        case 'p':
-            paused = !paused;
-            break;
-        default:
-            break;
+            case '8':  // ↑
+                if (player_y > 1) player_y--;
+                break;
+            case '9':  // ↗
+                if (player_x < WIDTH - 2) player_x++;
+                if (player_y > 1) player_y--;
+                break;
+            case '4':  // ←
+                if (player_x > 1) player_x--;
+                break;
+            case '5':  // 정지 (사용 X)
+                break;
+            case '6':  // →
+                if (player_x < WIDTH - 2) player_x++;
+                break;
+            case '1':  // ↙
+                if (player_x > 1) player_x--;
+                if (player_y < HEIGHT - 2) player_y++;
+                break;
+            case '2':  // ↓
+                if (player_y < HEIGHT - 2) player_y++;
+                break;
+            case '3':  // ↘
+                if (player_x < WIDTH - 2) player_x++;
+                if (player_y < HEIGHT - 2) player_y++;
+                break;
+            case ' ':
+                for (int i = 0; i < MAX_BULLETS; i++) {
+                    if (!bullets[i].active) {
+                        bullets[i].active = 1;
+                        bullets[i].x = player_x;
+                        bullets[i].y = player_y - 1;
+                        break;
+                    }
+                }
+                break;
+            case 'b':
+                if (has_bomb) {
+                    create_bomb_effect(player_x, player_y);
+                    destroy_obstacles_in_bomb_range(player_x, player_y, 12);
+                    has_bomb = 0;
+                }
+                break;
+            case 'p':
+                paused = !paused;
+                break;
+            default:
+                break;
+        }
     }
     
-    // 발사 버튼 (ch2)
-    switch(ch2){
-        case '1':
-            for (int i = 0; i < MAX_BULLETS; i++) {
-                if (!bullets[i].active) {
-                    bullets[i].active = 1;
-                    bullets[i].x = player_x;
-                    bullets[i].y = player_y - 1;
-                    break;
-                }
-            }
-            break;
-    }
+    //if (ch == ERR) return;  // 입력이 없으면 바로 리턴
+
     
-    // 폭탄 사용 버튼 (ch3)
-    switch(ch3){
-// 폭탄 사용 부분 수정 (handle_input 함수 내)
-case '1':
-    if (has_bomb) {  // 폭탄을 보유하고 있을 때만
-        // 플레이어 위치에서 폭탄 이펙트 생성
-        create_bomb_effect(player_x, player_y);
-        
-        // 폭탄 반경 내 장애물 파괴 (반경을 5로 통일)
-        destroy_obstacles_in_bomb_range(player_x, player_y, 12);
-        
-        // 폭탄 사용 완료
-        has_bomb = 0;
-    }
-    break;
-    }
 }
 
 // run_game() 함수 수정
