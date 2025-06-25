@@ -539,19 +539,19 @@ void draw_ui_area() {
 
         // 게임 상태 정보
         wattron(ui_win, COLOR_PAIR(COLOR_LIFE) | A_BOLD);
-        mvwprintw(ui_win, 5, 2, "♥ Life: %d", life);
+        mvwprintw(ui_win, 5, 2, "♥ Life: %-2d", life);
         wattroff(ui_win, COLOR_PAIR(COLOR_LIFE) | A_BOLD);
         
         wattron(ui_win, COLOR_PAIR(COLOR_SCORE) | A_BOLD);
-        mvwprintw(ui_win, 6, 2, "💫 Score: %d", current_score);
+        mvwprintw(ui_win, 6, 2, "💫 Score: %-2d", current_score);
         wattroff(ui_win, COLOR_PAIR(COLOR_SCORE) | A_BOLD);
         
         wattron(ui_win, COLOR_PAIR(COLOR_BULLET));
-        mvwprintw(ui_win, 7, 2, "🎯 Bullet: %d", MAX_BULLETS);
+        mvwprintw(ui_win, 7, 2, "🎯 Bullet: %-2d", MAX_BULLETS);
         wattroff(ui_win, COLOR_PAIR(COLOR_BULLET));
         
         wattron(ui_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
-        mvwprintw(ui_win, 8, 2, "⭐ LEVEL: %d", level);
+        mvwprintw(ui_win, 8, 2, "⭐ LEVEL: %-2d", level);
         wattroff(ui_win, COLOR_PAIR(COLOR_UI) | A_BOLD);
 
         // 아이템 상태 표시
@@ -597,7 +597,7 @@ void draw_ui_area() {
         //2인 모드일 때 추가 정보 표시
         if (current_game_mode == GAME_MODE_MULTI) {
             wattron(ui_win, COLOR_PAIR(COLOR_ENEMY) | A_BOLD);
-            mvwprintw(ui_win, 22, 2, "⚔️ Opponent: %d", current_opponent_score);
+            mvwprintw(ui_win, 22, 2, "⚔️ Opponent: %-2d", current_opponent_score);
             wattroff(ui_win, COLOR_PAIR(COLOR_ENEMY) | A_BOLD);
         }
 
