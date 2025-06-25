@@ -122,10 +122,27 @@ sudo apt-get install libgpiod-dev
 make
 ```
 
-### 3. 게임 실행 (컨트롤러 사용)
+### 3. 서버 빌드
+
+```bash
+make server_app
+```
+
+**⚠️ 주의:** 서버 실행 전 다음 파일들의 설정을 확인하고 수정하세요:
+- `server/server.c`: 서버 주소 및 포트 설정
+- `src/network/network.c`: 포트 설정
+
+
+### 4. 게임 실행 (컨트롤러 사용)
 
 ```bash
 sudo ./space_escape
+```
+
+### 5. 서버 실행
+
+```bash
+./server_app
 ```
 
 ---
