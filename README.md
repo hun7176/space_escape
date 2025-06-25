@@ -173,6 +173,9 @@ sudo ./space_escape
 
 ![게임 소개 슬라이드](./presentation_note/page-0010.jpg)
 
+### 🔹 로비 화면
+![로비](./presentation_note/lobby.png)
+
 ---
 
 ## 🙌 참여 및 문의
